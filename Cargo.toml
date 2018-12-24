@@ -54,3 +54,6 @@ tar = "0.4"
 [dev-dependencies]
 grin_chain = { path = "./chain", version = "0.5.0" }
 grin_store = { path = "./store", version = "0.5.0" }
+
+[features]
+monitoring=['grin_util/monitoring']

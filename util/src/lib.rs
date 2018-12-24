@@ -46,6 +46,7 @@ pub mod types;
 pub use crate::types::{LogLevel, LoggingConfig, ZeroingString};
 
 pub mod macros;
+pub mod prometheus;
 
 // read_exact and write_all impls
 pub mod read_write;

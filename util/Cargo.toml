@@ -23,6 +23,8 @@ walkdir = "2"
 zip = { version = "0.4", default-features = false }
 parking_lot = {version = "0.6"}
 zeroize = "0.5.1"
+hyper = { version = "0.12", default-features = false, optional = true}
+prometheus = { version = "0.4.2", optional = true}
 
 [dependencies.grin_secp256k1zkp]
 #git = "https://github.com/mimblewimble/rust-secp256k1-zkp"
@@ -30,3 +32,6 @@ zeroize = "0.5.1"
 #path = "../../rust-secp256k1-zkp"
 version = "0.7.3"
 features = ["bullet-proof-sizing"]
+
+[features]
+monitoring = ['hyper', 'prometheus', 'prometheus/process']

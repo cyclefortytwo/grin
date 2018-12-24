@@ -29,9 +29,11 @@ use crate::core::global;
 use crate::p2p::Seeding;
 use crate::servers;
 use crate::tui::ui;
+use crate::util::prometheus;
 
 /// wrap below to allow UI to clean up on stop
 fn start_server(config: servers::ServerConfig) {
+	prometheus::start();
 	start_server_tui(config);
 	// Just kill process for now, otherwise the process
 	// hangs around until sigint because the API server
