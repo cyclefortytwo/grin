@@ -56,14 +56,34 @@ fn handler(res: Request<Body>) -> Response<Body> {
 
 #[cfg(feature = "monitoring")]
 pub fn int_gauge_inc(name: &'static str) {
-	println!("INC with monitoring");
-	INT_GAUGES
-		.lock()
-		.unwrap()
-		.entry(name)
-		.or_insert(register_int_gauge!(name, "").unwrap())
-		.inc();
-	println!("INC with monitoring | END");
+	eprintln!("INC with monitoring");
+	let l = INT_GAUGES.lock();
+	eprintln!("INC GOT LOCK");
+	let mut hm = l.unwrap();
+	eprintln!("INC UNWRAPPED");
+	match hm.get(name) {
+		Some(g) => {
+			eprintln!("EXISTS ");
+			g.inc();
+			eprintln!("INC");
+		}
+		None => {
+			eprintln!("NOT EXISTS ");
+			let g = register_int_gauge!(name, "help").unwrap();
+			eprintln!("REGISTERED");
+			g.inc();
+			eprintln!("INC ");
+			hm.insert(name, g);
+			eprintln!("INSERT");
+		}
+	}
+	//INT_GAUGES
+	//.lock()
+	//.unwrap()
+	//.entry(name)
+	//.or_insert(register_int_gauge!(name, name).unwrap())
+	//.inc();
+	eprintln!("INC with monitoring | END");
 }
 #[cfg(not(feature = "monitoring"))]
 pub fn int_gauge_inc(name: &'static str) {
