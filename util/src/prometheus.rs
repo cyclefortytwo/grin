@@ -1,3 +1,5 @@
+extern crate log;
+
 #[cfg(feature = "monitoring")]
 use hyper::rt::Future;
 #[cfg(feature = "monitoring")]
@@ -14,12 +16,12 @@ use prometheus::{register_int_gauge, IntGauge, __register_gauge, opts, Encoder};
 #[cfg(feature = "monitoring")]
 use std::collections::HashMap;
 #[cfg(feature = "monitoring")]
-use std::sync::Mutex;
+use std::sync::RwLock;
 
 #[cfg(feature = "monitoring")]
 lazy_static! {
 
-		static ref INT_GAUGES: Mutex<HashMap<&'static str, IntGauge>> = Mutex::new(HashMap::new());
+		static ref INT_GAUGES: RwLock<HashMap<&'static str, IntGauge>> = RwLock::new(HashMap::new());
 		//static ref PEERS_CONNECTED_GAUGE: IntGauge =
 				//register_int_gauge!("peers_connected_total", "Number of connected peers").unwrap();
 }
@@ -56,35 +58,25 @@ fn handler(res: Request<Body>) -> Response<Body> {
 
 #[cfg(feature = "monitoring")]
 pub fn int_gauge_inc(name: &'static str) {
-	eprintln!("INC with monitoring");
-	let l = INT_GAUGES.lock();
-	eprintln!("INC GOT LOCK");
-	let mut hm = l.unwrap();
-	eprintln!("INC UNWRAPPED");
-	match hm.get(name) {
-		Some(g) => {
-			eprintln!("EXISTS ");
+	info!("INC with monitoring");
+	{
+		let hm = INT_GAUGES.read().unwrap();
+		if let Some(g) = hm.get(name) {
 			g.inc();
-			eprintln!("INC");
-		}
-		None => {
-			eprintln!("NOT EXISTS ");
-			let g = register_int_gauge!(name, "help").unwrap();
-			eprintln!("REGISTERED");
-			g.inc();
-			eprintln!("INC ");
-			hm.insert(name, g);
-			eprintln!("INSERT");
+			return;
 		}
 	}
-	//INT_GAUGES
-	//.lock()
-	//.unwrap()
-	//.entry(name)
-	//.or_insert(register_int_gauge!(name, name).unwrap())
-	//.inc();
-	eprintln!("INC with monitoring | END");
+
+	let mut hm = INT_GAUGES.write().unwrap();
+	match register_int_gauge!(name, "help") {
+		Ok(g) => {
+			g.inc();
+			hm.insert(name, g);
+		}
+		Err(e) => warn!("Cannot create gauge {}", e),
+	}
 }
+
 #[cfg(not(feature = "monitoring"))]
 pub fn int_gauge_inc(name: &'static str) {
 	println!("INC without monitoring");
@@ -92,13 +84,22 @@ pub fn int_gauge_inc(name: &'static str) {
 
 #[cfg(feature = "monitoring")]
 pub fn int_gauge_dec(name: &'static str) {
-	println!("DEC with monitoring");
-	INT_GAUGES
-		.lock()
-		.unwrap()
-		.entry(name)
-		.or_insert(register_int_gauge!(name, "").unwrap())
-		.dec();
+	{
+		let hm = INT_GAUGES.read().unwrap();
+		if let Some(g) = hm.get(name) {
+			g.dec();
+			return;
+		}
+	}
+
+	let mut hm = INT_GAUGES.write().unwrap();
+	match register_int_gauge!(name, "help") {
+		Ok(g) => {
+			g.dec();
+			hm.insert(name, g);
+		}
+		Err(e) => warn!("Cannot create gauge {}", e),
+	}
 }
 
 #[cfg(not(feature = "monitoring"))]
