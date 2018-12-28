@@ -57,12 +57,11 @@ fn handler(res: Request<Body>) -> Response<Body> {
 }
 
 #[cfg(feature = "monitoring")]
-pub fn int_gauge_inc(name: &'static str) {
-	info!("INC with monitoring");
+pub fn run_for_int_gauge(name: &'static str, f: fn(g: &IntGauge)) {
 	{
 		let hm = INT_GAUGES.read().unwrap();
 		if let Some(g) = hm.get(name) {
-			g.inc();
+			f(&g);
 			return;
 		}
 	}
@@ -70,11 +69,17 @@ pub fn int_gauge_inc(name: &'static str) {
 	let mut hm = INT_GAUGES.write().unwrap();
 	match register_int_gauge!(name, "help") {
 		Ok(g) => {
-			g.inc();
+			f(&g);
 			hm.insert(name, g);
 		}
 		Err(e) => warn!("Cannot create gauge {}", e),
 	}
+}
+
+#[cfg(feature = "monitoring")]
+pub fn int_gauge_inc(name: &'static str) {
+	info!("INC with monitoring");
+	run_for_int_gauge(name, |g| g.inc());
 }
 
 #[cfg(not(feature = "monitoring"))]
@@ -84,22 +89,7 @@ pub fn int_gauge_inc(name: &'static str) {
 
 #[cfg(feature = "monitoring")]
 pub fn int_gauge_dec(name: &'static str) {
-	{
-		let hm = INT_GAUGES.read().unwrap();
-		if let Some(g) = hm.get(name) {
-			g.dec();
-			return;
-		}
-	}
-
-	let mut hm = INT_GAUGES.write().unwrap();
-	match register_int_gauge!(name, "help") {
-		Ok(g) => {
-			g.dec();
-			hm.insert(name, g);
-		}
-		Err(e) => warn!("Cannot create gauge {}", e),
-	}
+	run_for_int_gauge(name, |g| g.dec())
 }
 
 #[cfg(not(feature = "monitoring"))]
