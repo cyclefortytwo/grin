@@ -102,7 +102,6 @@ mod empty {
 
 	pub fn int_gauge_sub(name: &'static str, n: i64) {}
 	pub fn int_gauge_set(name: &'static str, n: i64) {}
-	#[cfg(not(feature = "monitoring"))]
 	pub fn start() {}
 }
 
