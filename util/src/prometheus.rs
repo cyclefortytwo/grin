@@ -44,7 +44,7 @@ mod prometheus {
 		Response::new(Body::from(buffer.clone()))
 	}
 
-	pub fn run_for_int_gauge(name: &'static str, f: fn(g: &IntGauge)) {
+	pub fn run_for_int_gauge(name: &'static str, f: impl Fn(&IntGauge) -> ()) {
 		{
 			let hm = INT_GAUGES.read().unwrap();
 			if let Some(g) = hm.get(name) {
