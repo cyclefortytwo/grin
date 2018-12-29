@@ -69,7 +69,23 @@ mod prometheus {
 	}
 
 	pub fn int_gauge_dec(name: &'static str) {
+		info!("DEC with monitoring");
 		run_for_int_gauge(name, |g| g.dec())
+	}
+
+	pub fn int_gauge_add(name: &'static str, n: i64) {
+		info!("ADD with monitoring");
+		run_for_int_gauge(name, |g| g.add(n));
+	}
+
+	pub fn int_gauge_sub(name: &'static str, n: i64) {
+		info!("SET with monitoring");
+		run_for_int_gauge(name, |g| g.sub(n));
+	}
+
+	pub fn int_gauge_set(name: &'static str, n: i64) {
+		info!("SET with monitoring");
+		run_for_int_gauge(name, |g| g.set(n));
 	}
 
 }
@@ -82,12 +98,20 @@ mod empty {
 	pub fn int_gauge_dec(name: &'static str) {
 		println!("DEC without monitoring");
 	}
+	pub fn int_gauge_add(name: &'static str, n: i64) {}
+
+	pub fn int_gauge_sub(name: &'static str, n: i64) {}
+	pub fn int_gauge_set(name: &'static str, n: i64) {}
 	#[cfg(not(feature = "monitoring"))]
 	pub fn start() {}
 }
 
 #[cfg(feature = "monitoring")]
-pub use crate::prometheus::prometheus::{int_gauge_dec, int_gauge_inc, start};
+pub use crate::prometheus::prometheus::{
+	int_gauge_add, int_gauge_dec, int_gauge_inc, int_gauge_set, int_gauge_sub, start,
+};
 
 #[cfg(not(feature = "monitoring"))]
-pub use crate::prometheus::empty::{int_gauge_dec, int_gauge_inc, start};
+pub use crate::prometheus::empty::{
+	int_gauge_add, int_gauge_dec, int_gauge_inc, int_gauge_set, int_gauge_sub, start,
+};
