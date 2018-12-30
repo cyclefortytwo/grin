@@ -57,7 +57,7 @@ pub struct Peer {
 impl Peer {
 	// Only accept and connect can be externally used to build a peer
 	fn new(info: PeerInfo, adapter: Arc<dyn NetAdapter>) -> Peer {
-		int_gauge_inc("peers_connected_total");
+		int_gauge_inc("p2p_connected_total");
 		Peer {
 			info,
 			state: Arc::new(RwLock::new(State::Connected)),
@@ -226,7 +226,7 @@ impl Peer {
 	/// Set this peer status to banned
 	pub fn set_banned(&self) {
 		*self.state.write() = State::Banned;
-		int_gauge_dec("peers_connected_total");
+		int_gauge_dec("p2p_connected_total");
 	}
 
 	/// Send a ping to the remote peer, providing our local difficulty and
@@ -459,7 +459,7 @@ impl Peer {
 					let mut state = self.state.write();
 					if State::Banned != *state {
 						*state = State::Disconnected;
-						int_gauge_dec("peers_connected_total");
+						int_gauge_dec("p2p_connected_total");
 						true
 					} else {
 						false
@@ -479,7 +479,7 @@ impl Peer {
 					let mut state = self.state.write();
 					if State::Disconnected != *state {
 						*state = State::Disconnected;
-						int_gauge_dec("peers_connected_total");
+						int_gauge_dec("p2p_connected_total");
 						true
 					} else {
 						false

@@ -32,6 +32,7 @@ use crate::txhashset::TxHashSet;
 use crate::types::{
 	BlockStatus, ChainAdapter, NoStatus, Options, Tip, TxHashSetRoots, TxHashsetWriteStatus,
 };
+use crate::util::prometheus::int_gauge_set;
 use crate::util::secp::pedersen::{Commitment, RangeProof};
 use crate::util::{Mutex, RwLock, StopState};
 use grin_store::Error::NotFoundErr;
@@ -314,6 +315,14 @@ impl Chain {
 			// A node shutdown at this point can be catastrophic...
 			// We prevent this via the stop_lock (see above).
 			if let Ok(_) = maybe_new_head {
+				int_gauge_set(
+					"chain_secondary_scaling",
+					b.header.pow.secondary_scaling as i64,
+				);
+				int_gauge_set(
+					"chain_total_difficulty",
+					b.header.total_difficulty().to_num() as i64,
+				);
 				ctx.batch.commit()?;
 			}
 
@@ -990,7 +999,7 @@ impl Chain {
 				Err(e) => {
 					return Err(
 						ErrorKind::StoreErr(e, "retrieving block to compact".to_owned()).into(),
-					)
+					);
 				}
 			}
 			if current.height <= 1 {
