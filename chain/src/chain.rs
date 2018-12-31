@@ -308,6 +308,8 @@ impl Chain {
 
 			let prev_head = ctx.batch.head()?;
 
+			let prev_header = ctx.batch.head_header()?;
+
 			let maybe_new_head = pipe::process_block(&b, &mut ctx);
 
 			// We have flushed txhashset extension changes to disk
@@ -315,6 +317,10 @@ impl Chain {
 			// A node shutdown at this point can be catastrophic...
 			// We prevent this via the stop_lock (see above).
 			if let Ok(_) = maybe_new_head {
+				int_gauge_set(
+					"chain_block_time_seconds",
+					b.header.timestamp.timestamp() - prev_header.timestamp.timestamp(),
+				);
 				int_gauge_set(
 					"chain_secondary_scaling",
 					b.header.pow.secondary_scaling as i64,
