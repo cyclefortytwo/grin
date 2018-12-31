@@ -14,7 +14,9 @@ mod prometheus {
 
 	lazy_static! {
 
+			static ref GAUGES: RwLock<HashMap<&'static str, Gauge>> = RwLock::new(HashMap::new());
 			static ref INT_GAUGES: RwLock<HashMap<&'static str, IntGauge>> = RwLock::new(HashMap::new());
+			static ref INT_COUNTER: RwLock<HashMap<&'static str, IntCounter>> = RwLock::new(HashMap::new());
 			//static ref PEERS_CONNECTED_GAUGE: IntGauge =
 					//register_int_gauge!("peers_connected_total", "Number of connected peers").unwrap();
 	}
@@ -29,11 +31,11 @@ mod prometheus {
 					.serve(new_service)
 					// TODO graceful shutdown is unstable, investigate
 					//.with_graceful_shutdown(rx)
-					.map_err(|e| eprintln!("HTTP API server error: {}", e));
+					.map_err(|e| warn!("Prometheus server error: {}", e));
 
 				rt::run(server);
-			});
-		//.map_err(|_| ErrorKind::Internal("failed to spawn API thread".to_string()).into())
+			})
+			.map_err(|e| warn!("Failed to spawn a thread with Prometheus server: {}", e));
 	}
 
 	fn handler(res: Request<Body>) -> Response<Body> {
@@ -88,29 +90,93 @@ mod prometheus {
 		run_for_int_gauge(name, |g| g.set(n));
 	}
 
+	pub fn run_for_gauge(name: &'static str, f: impl Fn(&Gauge) -> ()) {
+		{
+			let hm = GAUGES.read().unwrap();
+			if let Some(g) = hm.get(name) {
+				f(&g);
+				return;
+			}
+		}
+
+		let mut hm = GAUGES.write().unwrap();
+		match register_gauge!(name, "help") {
+			Ok(g) => {
+				f(&g);
+				hm.insert(name, g);
+			}
+			Err(e) => warn!("Cannot create gauge {}", e),
+		}
+	}
+
+	pub fn gauge_inc(name: &'static str) {
+		info!("INC with monitoring");
+		run_for_gauge(name, |g| g.inc());
+	}
+
+	pub fn gauge_dec(name: &'static str) {
+		info!("DEC with monitoring");
+		run_for_gauge(name, |g| g.dec())
+	}
+
+	pub fn gauge_add(name: &'static str, n: f64) {
+		info!("ADD with monitoring");
+		run_for_gauge(name, |g| g.add(n));
+	}
+
+	pub fn gauge_sub(name: &'static str, n: f64) {
+		info!("SET with monitoring");
+		run_for_gauge(name, |g| g.sub(n));
+	}
+
+	pub fn gauge_set(name: &'static str, n: f64) {
+		info!("SET with monitoring");
+		run_for_gauge(name, |g| g.set(n));
+	}
+
+	pub fn run_for_int_counter(name: &'static str, f: impl Fn(&IntCounter) -> ()) {
+		{
+			let hm = INT_COUNTER.read().unwrap();
+			if let Some(m) = hm.get(name) {
+				f(&m);
+				return;
+			}
+		}
+
+		let mut hm = INT_COUNTER.write().unwrap();
+		match register_int_gauge!(name, "help") {
+			Ok(m) => {
+				f(&m);
+				hm.insert(name, m);
+			}
+			Err(e) => warn!("Cannot create counter {}", e),
+		}
+	}
+	pub fn int_counter_inc(name: &'static str) {
+		run_for_int_counter(name, |c| g.inc());
+	}
+
 }
 
 #[cfg(not(feature = "monitoring"))]
 mod empty {
-	pub fn int_gauge_inc(name: &'static str) {
-		println!("INC without monitoring");
-	}
-	pub fn int_gauge_dec(name: &'static str) {
-		println!("DEC without monitoring");
-	}
+	pub fn int_gauge_inc(name: &'static str) {}
+	pub fn int_gauge_dec(name: &'static str) {}
 	pub fn int_gauge_add(name: &'static str, n: i64) {}
-
 	pub fn int_gauge_sub(name: &'static str, n: i64) {}
 	pub fn int_gauge_set(name: &'static str, n: i64) {}
+	pub fn int_counter_inc(name: &'static str) {}
 	pub fn start() {}
 }
 
 #[cfg(feature = "monitoring")]
 pub use crate::prometheus::prometheus::{
-	int_gauge_add, int_gauge_dec, int_gauge_inc, int_gauge_set, int_gauge_sub, start,
+	int_counter_inc, int_gauge_add, int_gauge_dec, int_gauge_inc, int_gauge_set, int_gauge_sub,
+	start,
 };
 
 #[cfg(not(feature = "monitoring"))]
 pub use crate::prometheus::empty::{
-	int_gauge_add, int_gauge_dec, int_gauge_inc, int_gauge_set, int_gauge_sub, start,
+	int_counter_inc, int_gauge_add, int_gauge_dec, int_gauge_inc, int_gauge_set, int_gauge_sub,
+	start,
 };
