@@ -8,7 +8,10 @@ mod prometheus {
 	use std::thread;
 
 	use lazy_static::lazy_static;
-	use prometheus::{register_int_gauge, IntGauge, __register_gauge, opts, Encoder};
+	use prometheus::{
+		register_int_gauge, IntGauge, __register_gauge, opts, register_gauge, register_int_counter,
+		Encoder, Gauge, IntCounter, __register_counter,
+	};
 	use std::collections::HashMap;
 	use std::sync::RwLock;
 
@@ -46,6 +49,18 @@ mod prometheus {
 		Response::new(Body::from(buffer.clone()))
 	}
 
+	pub fn register_int_gauge(name: &'static str, help: &str) {
+		let mut hm = INT_GAUGES.write().unwrap();
+		if let None = hm.get(name) {
+			match register_int_gauge!(name, help) {
+				Ok(g) => {
+					hm.insert(name, g);
+				}
+				Err(e) => warn!("Cannot create gauge {}", e),
+			}
+		}
+	}
+
 	pub fn run_for_int_gauge(name: &'static str, f: impl Fn(&IntGauge) -> ()) {
 		{
 			let hm = INT_GAUGES.read().unwrap();
@@ -56,7 +71,7 @@ mod prometheus {
 		}
 
 		let mut hm = INT_GAUGES.write().unwrap();
-		match register_int_gauge!(name, "help") {
+		match register_int_gauge!(name, name) {
 			Ok(g) => {
 				f(&g);
 				hm.insert(name, g);
@@ -90,6 +105,18 @@ mod prometheus {
 		run_for_int_gauge(name, |g| g.set(n));
 	}
 
+	pub fn register_gauge(name: &'static str, help: &str) {
+		let mut hm = GAUGES.write().unwrap();
+		if let None = hm.get(name) {
+			match register_gauge!(name, help) {
+				Ok(g) => {
+					hm.insert(name, g);
+				}
+				Err(e) => warn!("Cannot create gauge {}", e),
+			}
+		}
+	}
+
 	pub fn run_for_gauge(name: &'static str, f: impl Fn(&Gauge) -> ()) {
 		{
 			let hm = GAUGES.read().unwrap();
@@ -100,7 +127,7 @@ mod prometheus {
 		}
 
 		let mut hm = GAUGES.write().unwrap();
-		match register_gauge!(name, "help") {
+		match register_gauge!(name, name) {
 			Ok(g) => {
 				f(&g);
 				hm.insert(name, g);
@@ -134,6 +161,18 @@ mod prometheus {
 		run_for_gauge(name, |g| g.set(n));
 	}
 
+	pub fn register_int_counter(name: &'static str, help: &str) {
+		let mut hm = INT_COUNTER.write().unwrap();
+		if let None = hm.get(name) {
+			match register_int_counter!(name, help) {
+				Ok(g) => {
+					hm.insert(name, g);
+				}
+				Err(e) => warn!("Cannot create int counter {}", e),
+			}
+		}
+	}
+
 	pub fn run_for_int_counter(name: &'static str, f: impl Fn(&IntCounter) -> ()) {
 		{
 			let hm = INT_COUNTER.read().unwrap();
@@ -144,7 +183,7 @@ mod prometheus {
 		}
 
 		let mut hm = INT_COUNTER.write().unwrap();
-		match register_int_gauge!(name, "help") {
+		match register_int_counter!(name, name) {
 			Ok(m) => {
 				f(&m);
 				hm.insert(name, m);
@@ -153,13 +192,16 @@ mod prometheus {
 		}
 	}
 	pub fn int_counter_inc(name: &'static str) {
-		run_for_int_counter(name, |c| g.inc());
+		run_for_int_counter(name, |c| c.inc());
 	}
 
 }
 
 #[cfg(not(feature = "monitoring"))]
 mod empty {
+	pub fn register_int_gauge(name: &'static str, help: &str) {}
+	pub fn register_gauge(name: &'static str, help: &str) {}
+	pub fn register_int_counter(name: &'static str, help: &str) {}
 	pub fn int_gauge_inc(name: &'static str) {}
 	pub fn int_gauge_dec(name: &'static str) {}
 	pub fn int_gauge_add(name: &'static str, n: i64) {}
@@ -172,11 +214,11 @@ mod empty {
 #[cfg(feature = "monitoring")]
 pub use crate::prometheus::prometheus::{
 	int_counter_inc, int_gauge_add, int_gauge_dec, int_gauge_inc, int_gauge_set, int_gauge_sub,
-	start,
+	register_gauge, register_int_counter, register_int_gauge, start,
 };
 
 #[cfg(not(feature = "monitoring"))]
 pub use crate::prometheus::empty::{
 	int_counter_inc, int_gauge_add, int_gauge_dec, int_gauge_inc, int_gauge_set, int_gauge_sub,
-	start,
+	register_gauge, register_int_counter, register_int_gauge, start,
 };
