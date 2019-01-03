@@ -86,7 +86,7 @@ mod prometheus {
 		run_for_histogram(name, |h| h.observe(t));
 	}
 
-	pub fn histogram_start_timer(name: &'static str, t: f64) -> HistogramTimer {
+	pub fn histogram_start_timer(name: &'static str) -> HistogramTimer {
 		{
 			let hm = HISTOGRAMS.read().unwrap();
 			if let Some(h) = hm.get(name) {
@@ -258,6 +258,11 @@ mod prometheus {
 
 #[cfg(not(feature = "monitoring"))]
 mod empty {
+
+	pub struct HistogramTimer {}
+	impl HistogramTimer {
+		pub fn observe_duration(self) {}
+	}
 	pub fn register_int_gauge(name: &'static str, help: &str) {}
 	pub fn register_gauge(name: &'static str, help: &str) {}
 	pub fn register_int_counter(name: &'static str, help: &str) {}
@@ -267,17 +272,24 @@ mod empty {
 	pub fn int_gauge_sub(name: &'static str, n: i64) {}
 	pub fn int_gauge_set(name: &'static str, n: i64) {}
 	pub fn int_counter_inc(name: &'static str) {}
+	pub fn register_histogram(name: &'static str, help: &str, buckets: Vec<f64>) {}
+	pub fn histogram_observe(name: &'static str, t: f64) {}
+	pub fn histogram_start_timer(name: &'static str) -> HistogramTimer {
+		HistogramTimer {}
+	}
 	pub fn start() {}
 }
 
 #[cfg(feature = "monitoring")]
 pub use crate::prometheus::prometheus::{
-	int_counter_inc, int_gauge_add, int_gauge_dec, int_gauge_inc, int_gauge_set, int_gauge_sub,
-	register_gauge, register_int_counter, register_int_gauge, start,
+	histogram_observe, histogram_start_timer, int_counter_inc, int_gauge_add, int_gauge_dec,
+	int_gauge_inc, int_gauge_set, int_gauge_sub, register_gauge, register_histogram,
+	register_int_counter, register_int_gauge, start,
 };
 
 #[cfg(not(feature = "monitoring"))]
 pub use crate::prometheus::empty::{
-	int_counter_inc, int_gauge_add, int_gauge_dec, int_gauge_inc, int_gauge_set, int_gauge_sub,
-	register_gauge, register_int_counter, register_int_gauge, start,
+	histogram_observe, histogram_start_timer, int_counter_inc, int_gauge_add, int_gauge_dec,
+	int_gauge_inc, int_gauge_set, int_gauge_sub, register_gauge, register_histogram,
+	register_int_counter, register_int_gauge, start,
 };
