@@ -10,7 +10,8 @@ mod prometheus {
 	use lazy_static::lazy_static;
 	use prometheus::{
 		register_int_gauge, IntGauge, __register_gauge, opts, register_gauge, register_int_counter,
-		Encoder, Gauge, IntCounter, __register_counter,
+		Encoder, Gauge, Histogram, HistogramTimer, IntCounter, __register_counter, histogram_opts,
+		register, register_histogram,
 	};
 	use std::collections::HashMap;
 	use std::sync::RwLock;
@@ -20,6 +21,7 @@ mod prometheus {
 			static ref GAUGES: RwLock<HashMap<&'static str, Gauge>> = RwLock::new(HashMap::new());
 			static ref INT_GAUGES: RwLock<HashMap<&'static str, IntGauge>> = RwLock::new(HashMap::new());
 			static ref INT_COUNTER: RwLock<HashMap<&'static str, IntCounter>> = RwLock::new(HashMap::new());
+			static ref HISTOGRAMS: RwLock<HashMap<&'static str, Histogram>> = RwLock::new(HashMap::new());
 			//static ref PEERS_CONNECTED_GAUGE: IntGauge =
 					//register_int_gauge!("peers_connected_total", "Number of connected peers").unwrap();
 	}
@@ -47,6 +49,63 @@ mod prometheus {
 		let metric_families = prometheus::gather();
 		encoder.encode(&metric_families, &mut buffer).unwrap();
 		Response::new(Body::from(buffer.clone()))
+	}
+
+	pub fn register_histogram(name: &'static str, help: &str, buckets: Vec<f64>) {
+		let mut hm = HISTOGRAMS.write().unwrap();
+		if let None = hm.get(name) {
+			match register_histogram!(name, help, buckets) {
+				Ok(h) => {
+					hm.insert(name, h);
+				}
+				Err(e) => warn!("Cannot create gauge {}", e),
+			}
+		}
+	}
+
+	pub fn run_for_histogram(name: &'static str, mut f: impl FnMut(&Histogram) -> ()) {
+		{
+			let hm = HISTOGRAMS.read().unwrap();
+			if let Some(h) = hm.get(name) {
+				f(&h);
+				return;
+			}
+		}
+
+		let mut hm = HISTOGRAMS.write().unwrap();
+		match register_histogram!(name, name) {
+			Ok(h) => {
+				f(&h);
+				hm.insert(name, h);
+			}
+			Err(e) => warn!("Cannot create histogram {}", e),
+		}
+	}
+
+	pub fn histogram_observe(name: &'static str, t: f64) {
+		run_for_histogram(name, |h| h.observe(t));
+	}
+
+	pub fn histogram_start_timer(name: &'static str, t: f64) -> HistogramTimer {
+		{
+			let hm = HISTOGRAMS.read().unwrap();
+			if let Some(h) = hm.get(name) {
+				return h.start_timer();
+			}
+		}
+		let mut hm = HISTOGRAMS.write().unwrap();
+		let h = Histogram::with_opts(histogram_opts!(name, name)).unwrap();
+		match register(Box::new(h.clone())) {
+			Ok(()) => {
+				let timer = h.start_timer();
+				hm.insert(name, h);
+				timer
+			}
+			Err(e) => {
+				warn!("Cannot create histogram {}", e);
+				h.start_timer()
+			}
+		}
 	}
 
 	pub fn register_int_gauge(name: &'static str, help: &str) {
