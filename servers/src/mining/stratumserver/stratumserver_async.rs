@@ -30,7 +30,7 @@ use std::io::BufReader;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 use std::{cmp, thread};
 
 use crate::chain;
@@ -304,6 +304,7 @@ impl Handler {
 	) -> Result<(Value, bool), Value> {
 		// Validate parameters
 		let params: SubmitParams = parse_params(params)?;
+		let start = Instant::now();
 
 		let current_block_versions = self.current_block_versions.read();
 		// Find the correct version of the block to match this header
@@ -330,6 +331,10 @@ impl Handler {
 			return Err(serde_json::to_value(e).unwrap());
 		}
 
+		println!(
+			"\x1B[31;1m after height check \x1B[0m = {:?}",
+			start.elapsed().as_micros()
+		);
 		let share_difficulty: u64;
 		let mut share_is_block = false;
 
@@ -371,11 +376,20 @@ impl Handler {
 			};
 			return Err(serde_json::to_value(e).unwrap());
 		}
+		println!(
+			"\x1B[31;1m after share difficulty check check \x1B[0m = {:?}",
+			start.elapsed().as_micros()
+		);
 
 		// If the difficulty is high enough, submit it (which also validates it)
-		if share_difficulty >= *self.current_difficulty.read() {
+		//if share_difficulty >= *self.current_difficulty.read() {
+		if true {
 			// This is a full solution, submit it to the network
 			let res = self.chain.process_block(b.clone(), chain::Options::MINE);
+			println!(
+				"\x1B[31;1m after process_block \x1B[0m = {:?}",
+				start.elapsed().as_micros()
+			);
 			if let Err(e) = res {
 				// Return error status
 				error!(

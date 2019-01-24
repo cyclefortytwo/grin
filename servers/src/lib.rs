@@ -20,6 +20,7 @@
 #![deny(non_snake_case)]
 #![deny(unused_mut)]
 #![warn(missing_docs)]
+#![feature(duration_as_u128)]
 
 use serde;
 #[macro_use]
