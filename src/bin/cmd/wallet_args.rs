@@ -394,6 +394,41 @@ pub fn parse_send_args(args: &ArgMatches) -> Result<command::SendArgs, ParseErro
 	})
 }
 
+pub fn parse_send_invoice_args(args: &ArgMatches) -> Result<command::SendInvoiceArgs, ParseError> {
+	// amount
+	let amount = parse_required(args, "amount")?;
+	let amount = core::core::amount_from_hr_string(amount);
+	let amount = match amount {
+		Ok(a) => a,
+		Err(e) => {
+			let msg = format!(
+				"Could not parse amount as a number with optional decimal point. e={}",
+				e
+			);
+			return Err(ParseError::ArgumentError(msg));
+		}
+	};
+
+	// message
+	let message = match args.is_present("message") {
+		true => Some(args.value_of("message").unwrap().to_owned()),
+		false => None,
+	};
+
+	// method
+	let method = parse_required(args, "method")?;
+
+	// dest
+	let dest = parse_required(args, "dest")?;
+
+	Ok(command::SendInvoiceArgs {
+		amount: amount,
+		message: message,
+		method: method.to_owned(),
+		dest: dest.to_owned(),
+	})
+}
+
 pub fn parse_receive_args(receive_args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
 	// message
 	let message = match receive_args.is_present("message") {
@@ -563,6 +598,10 @@ pub fn wallet_command(
 		("send", Some(args)) => {
 			let a = arg_parse!(parse_send_args(&args));
 			command::send(inst_wallet(), a)
+		}
+		("send_invoice", Some(args)) => {
+			let a = arg_parse!(parse_send_invoice_args(&args));
+			command::send_invoice(inst_wallet(), a)
 		}
 		("receive", Some(args)) => {
 			let a = arg_parse!(parse_receive_args(&args));

@@ -197,6 +197,30 @@ subcommands:
                   short: t
                   long: stored_tx
                   takes_value: true
+        - send_invoice:
+            about: Builds an invoice to receive coins
+            args:
+              - amount:
+                  help: Number of coins to send with optional fraction, e.g. 12.423
+                  index: 1
+              - method:
+                  help: Method for sending this transaction (for now we support only `file` method)
+                  short: m
+                  long: method
+                  possible_values:
+                    - file
+                  default_value: file
+                  takes_value: true
+              - dest:
+                  help: Name of the file to save invoice.
+                  short: d
+                  long: dest
+                  takes_value: true
+              - message:
+                  help: Optional participant message to include
+                  short: g
+                  long: message
+                  takes_value: true
         - receive:
             about: Processes a transaction file to accept a transfer from a sender
             args:

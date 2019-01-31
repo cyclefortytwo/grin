@@ -671,6 +671,49 @@ where
 		Ok((slate, lock_fn))
 	}
 
+	pub fn invoice_tx(
+		&mut self,
+		slate: &mut Slate,
+		src_acct_name: Option<&str>,
+		minimum_confirmations: u64,
+		max_outputs: usize,
+		num_change_outputs: usize,
+		selection_strategy_is_use_all: bool,
+		message: Option<String>,
+	) -> Result<impl FnOnce(&mut W, &Transaction) -> Result<(), Error>, Error> {
+		let mut w = self.wallet.lock();
+		w.open_with_credentials()?;
+		let parent_key_id = match src_acct_name {
+			Some(d) => {
+				let pm = w.get_acct_path(d.to_owned())?;
+				match pm {
+					Some(p) => p.path,
+					None => w.parent_key_id(),
+				}
+			}
+			None => w.parent_key_id(),
+		};
+
+		let tx = updater::retrieve_txs(&mut *w, None, Some(slate.id), Some(&parent_key_id), false)?;
+		for t in &tx {
+			if t.tx_type == TxLogEntryType::TxReceived {
+				return Err(ErrorKind::InvoiceAlreadyPaid(slate.id.to_string()).into());
+			}
+		}
+
+		let lock_fn = tx::invoice_tx(
+			&mut *w,
+			slate,
+			minimum_confirmations,
+			max_outputs,
+			num_change_outputs,
+			selection_strategy_is_use_all,
+			parent_key_id,
+			message,
+		)?;
+		Ok(lock_fn)
+	}
+
 	/// Lock outputs associated with a given slate/transaction
 	pub fn tx_lock_outputs(
 		&mut self,
@@ -852,6 +895,45 @@ where
 	pub fn verify_slate_messages(&mut self, slate: &Slate) -> Result<(), Error> {
 		let secp = Secp256k1::with_caps(ContextFlag::VerifyOnly);
 		slate.verify_messages(&secp)?;
+		Ok(())
+	}
+
+	/// Create slate with an invoice
+	pub fn initiate_receive_tx(
+		&mut self,
+		amount: u64,
+		message: Option<String>,
+	) -> Result<
+		(
+			Slate,
+			impl FnOnce(&mut W, &Transaction) -> Result<(), Error>,
+		),
+		Error,
+	> {
+		let mut w = self.wallet.lock();
+		w.open_with_credentials()?;
+		let parent_key_id = w.parent_key_id();
+		let (slate, context, add_fn) =
+			tx::create_receive_tx(&mut *w, amount, &parent_key_id, message)?;
+
+		{
+			let mut batch = w.batch()?;
+			batch.save_private_context(slate.id.as_bytes(), &context)?;
+			batch.commit()?;
+		}
+
+		w.close()?;
+		Ok((slate, add_fn))
+	}
+
+	pub fn tx_add_invoice_outputs(
+		&mut self,
+		slate: &Slate,
+		add_fn: impl FnOnce(&mut W, &Transaction) -> Result<(), Error>,
+	) -> Result<(), Error> {
+		let mut w = self.wallet.lock();
+		w.open_with_credentials()?;
+		add_fn(&mut *w, &slate.tx)?;
 		Ok(())
 	}
 

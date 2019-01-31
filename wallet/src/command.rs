@@ -279,6 +279,45 @@ pub fn send(
 	Ok(())
 }
 
+/// Arguments for the send_invoice command
+pub struct SendInvoiceArgs {
+	pub amount: u64,
+	pub message: Option<String>,
+	pub method: String,
+	pub dest: String,
+}
+
+pub fn send_invoice(
+	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+	args: SendInvoiceArgs,
+) -> Result<(), Error> {
+	controller::foreign_single_use(wallet.clone(), |api| {
+		let result = api.initiate_receive_tx(args.amount, args.message.clone());
+		let (mut slate, add_fn) = match result {
+			Ok(s) => {
+				info!(
+					"Invoice created: request {} grin from {}",
+					core::amount_to_hr_string(args.amount, false),
+					args.dest,
+				);
+				s
+			}
+			Err(e) => {
+				info!("Invoice wasn't created: {}", e);
+				return Err(e);
+			}
+		};
+		let adapter = match args.method.as_str() {
+			"file" => FileWalletCommAdapter::new(),
+			_ => NullWalletCommAdapter::new(),
+		};
+		adapter.send_tx_async(&args.dest, &slate)?;
+		api.tx_add_invoice_outputs(&slate, add_fn)?;
+		Ok(())
+	})?;
+	Ok(())
+}
+
 /// Receive command argument
 pub struct ReceiveArgs {
 	pub input: String,
@@ -306,6 +345,41 @@ pub fn receive(
 		"Response file {}.response generated, sending it back to the transaction originator.",
 		args.input
 	);
+	Ok(())
+}
+
+/// Receive command argument
+pub struct PayInvoiceArgs {
+	pub input: String,
+	pub message: Option<String>,
+	pub minimum_confirmations: u64,
+	pub selection_strategy: String,
+	pub change_outputs: usize,
+	pub max_outputs: usize,
+}
+
+pub fn pay_invoice(
+	wallet: Arc<Mutex<WalletInst<impl NodeClient + 'static, keychain::ExtKeychain>>>,
+	g_args: &GlobalArgs,
+	args: PayInvoiceArgs,
+) -> Result<(), Error> {
+	let adapter = FileWalletCommAdapter::new();
+	let mut slate = adapter.receive_tx_async(&args.input)?;
+	controller::owner_single_use(wallet, |api| {
+		if let Err(e) = api.verify_slate_messages(&slate) {
+			error!("Error validating participant messages: {}", e);
+			return Err(e);
+		}
+		let lock_fn = api.invoice_tx(&mut slate, Some(&g_args.account), args.message.clone())?;
+		let send_tx = format!("{}.response", args.input);
+		adapter.send_tx_async(&send_tx, &slate)?;
+		api.tx_lock_outputs(&slate, lock_fn)?;
+		info!(
+			"Response file {}.response generated, sending it back to the transaction originator.",
+			args.input
+		);
+		Ok(())
+	})?;
 	Ok(())
 }
 

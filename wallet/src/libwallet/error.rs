@@ -183,6 +183,10 @@ pub enum ErrorKind {
 	#[fail(display = "Transaction {} has already been received", _0)]
 	TransactionAlreadyReceived(String),
 
+	/// Invoice has already been paid
+	#[fail(display = "Invoice {} has already been paid", _0)]
+	InvoiceAlreadyPaid(String),
+
 	/// Attempt to repost a transaction that's not completed and stored
 	#[fail(display = "Transaction building not completed: {}", _0)]
 	TransactionBuildingNotCompleted(u32),
