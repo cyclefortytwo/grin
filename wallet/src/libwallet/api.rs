@@ -647,7 +647,7 @@ where
 
 		let mut slate = tx::new_tx_slate(&mut *w, amount, 2)?;
 
-		let (context, lock_fn) = tx::add_inputs_to_slate(
+		let (mut context, lock_fn) = tx::add_inputs_to_slate(
 			&mut *w,
 			&mut slate,
 			minimum_confirmations,
@@ -655,6 +655,15 @@ where
 			num_change_outputs,
 			selection_strategy_is_use_all,
 			&parent_key_id,
+		)?;
+
+		// Generate a kernel offset and subtract from our context's secret key. Store
+		// the offset in the slate's transaction kernel, and adds our public key
+		// information to the slate
+		let _ = slate.fill_round_1(
+			w.keychain(),
+			&mut context.sec_key,
+			&context.sec_nonce,
 			0,
 			message,
 		)?;
@@ -876,8 +885,17 @@ where
 		};
 		let mut slate = tx::new_tx_slate(&mut *w, amount, 2)?;
 
-		let (context, mut add_fn) =
-			tx::add_output_to_slate(&mut *w, &mut slate, &parent_key_id, 0, message)?;
+		let (mut context, mut add_fn) =
+			tx::add_output_to_slate(&mut *w, &mut slate, &parent_key_id)?;
+
+		// fill public keys
+		let _ = slate.fill_round_1(
+			w.keychain(),
+			&mut context.sec_key,
+			&context.sec_nonce,
+			0,
+			message,
+		)?;
 
 		{
 			let mut batch = w.batch()?;
@@ -925,8 +943,20 @@ where
 			None => None,
 		};
 
-		let (_, mut create_fn) =
-			tx::add_output_to_slate(&mut *w, slate, &parent_key_id, 1, message)?;
+		let (mut context, mut create_fn) = tx::add_output_to_slate(&mut *w, slate, &parent_key_id)?;
+
+		// fill public keys
+		let _ = slate.fill_round_1(
+			w.keychain(),
+			&mut context.sec_key,
+			&context.sec_nonce,
+			1,
+			message,
+		)?;
+
+		// perform partial sig
+		let _ = slate.fill_round_2(w.keychain(), &context.sec_key, &context.sec_nonce, 1)?;
+
 		create_fn(&mut *w, &slate.tx, PhantomData, PhantomData)?;
 		tx::update_message(&mut *w, slate)?;
 		w.close()?;

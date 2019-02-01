@@ -51,8 +51,6 @@ pub fn add_inputs_to_slate<T: ?Sized, C, K>(
 	num_change_outputs: usize,
 	selection_strategy_is_use_all: bool,
 	parent_key_id: &Identifier,
-	participant_id: usize,
-	message: Option<String>,
 ) -> Result<(Context, OutputLockFn<T, C, K>), Error>
 where
 	T: WalletBackend<C, K>,
@@ -69,7 +67,7 @@ where
 	// according to plan
 	// This function is just a big helper to do all of that, in theory
 	// this process can be split up in any way
-	let (mut context, sender_lock_fn) = selection::build_send_tx(
+	let (context, sender_lock_fn) = selection::build_send_tx(
 		wallet,
 		slate,
 		minimum_confirmations,
@@ -77,17 +75,6 @@ where
 		num_change_outputs,
 		selection_strategy_is_use_all,
 		parent_key_id.clone(),
-	)?;
-
-	// Generate a kernel offset and subtract from our context's secret key. Store
-	// the offset in the slate's transaction kernel, and adds our public key
-	// information to the slate
-	let _ = slate.fill_round_1(
-		wallet.keychain(),
-		&mut context.sec_key,
-		&context.sec_nonce,
-		participant_id,
-		message,
 	)?;
 
 	Ok((context, sender_lock_fn))
@@ -98,8 +85,6 @@ pub fn add_output_to_slate<T: ?Sized, C, K>(
 	wallet: &mut T,
 	slate: &mut Slate,
 	parent_key_id: &Identifier,
-	participant_id: usize,
-	message: Option<String>,
 ) -> Result<(Context, OutputLockFn<T, C, K>), Error>
 where
 	T: WalletBackend<C, K>,
@@ -107,25 +92,8 @@ where
 	K: Keychain,
 {
 	// create an output using the amount in the slate
-	let (_, mut context, create_fn) =
+	let (_, context, create_fn) =
 		selection::build_recipient_output(wallet, slate, parent_key_id.clone())?;
-
-	// fill public keys
-	let _ = slate.fill_round_1(
-		wallet.keychain(),
-		&mut context.sec_key,
-		&context.sec_nonce,
-		1,
-		message,
-	)?;
-
-	// perform partial sig
-	let _ = slate.fill_round_2(
-		wallet.keychain(),
-		&context.sec_key,
-		&context.sec_nonce,
-		participant_id,
-	)?;
 
 	Ok((context, create_fn))
 }
