@@ -364,6 +364,20 @@ impl Slate {
 			self.tx.kernels().len(),
 			None,
 		);
+		println!(
+			"\x1B[33;1m self.tx.inputs().len()\x1B[0m = {:?}",
+			self.tx.inputs().len()
+		);
+		println!(
+			"\x1B[33;1m self.tx.outputs().len()\x1B[0m = {:?}",
+			self.tx.outputs().len()
+		);
+		println!(
+			"\x1B[33;1m self.tx.kernels().len()\x1B[0m = {:?}",
+			self.tx.kernels().len()
+		);
+		println!("\x1B[33;1m fee\x1B[0m = {:?}", fee);
+		println!("\x1B[33;1m self.tx.fee()\x1B[0m = {:?}", self.tx.fee());
 		if fee > self.tx.fee() {
 			return Err(ErrorKind::Fee(
 				format!("Fee Dispute Error: {}, {}", self.tx.fee(), fee,).to_string(),

@@ -288,6 +288,7 @@ impl From<keychain::Error> for Error {
 
 impl From<libtx::Error> for Error {
 	fn from(error: crate::core::libtx::Error) -> Error {
+		println!("\x1B[31;1m error\x1B[0m = {:?}", error);
 		Error {
 			inner: Context::new(ErrorKind::LibTX(error.kind())),
 		}

@@ -292,7 +292,7 @@ pub fn send_invoice(
 	args: SendInvoiceArgs,
 ) -> Result<(), Error> {
 	controller::foreign_single_use(wallet.clone(), |api| {
-		let result = api.initiate_receive_tx(args.amount, args.message.clone());
+		let result = api.initiate_receive_tx(None, args.amount, args.message.clone());
 		let (mut slate, add_fn) = match result {
 			Ok(s) => {
 				info!(
@@ -312,7 +312,6 @@ pub fn send_invoice(
 			_ => NullWalletCommAdapter::new(),
 		};
 		adapter.send_tx_async(&args.dest, &slate)?;
-		api.tx_add_invoice_outputs(&slate, add_fn)?;
 		Ok(())
 	})?;
 	Ok(())
@@ -348,6 +347,7 @@ pub fn receive(
 	Ok(())
 }
 
+/*
 /// Receive command argument
 pub struct PayInvoiceArgs {
 	pub input: String,
@@ -382,6 +382,7 @@ pub fn pay_invoice(
 	})?;
 	Ok(())
 }
+*/
 
 /// Finalize command args
 pub struct FinalizeArgs {
