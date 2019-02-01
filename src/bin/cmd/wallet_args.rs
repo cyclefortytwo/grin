@@ -429,6 +429,63 @@ pub fn parse_send_invoice_args(args: &ArgMatches) -> Result<command::SendInvoice
 	})
 }
 
+pub fn parse_pay_invoice_args(args: &ArgMatches) -> Result<command::PayInvoiceArgs, ParseError> {
+	// message
+	let message = match args.is_present("message") {
+		true => Some(args.value_of("message").unwrap().to_owned()),
+		false => None,
+	};
+
+	// minimum_confirmations
+	let min_c = parse_required(args, "minimum_confirmations")?;
+	let min_c = parse_u64(min_c, "minimum_confirmations")?;
+
+	// selection_strategy
+	let selection_strategy = parse_required(args, "selection_strategy")?;
+
+	// method
+	let method = parse_required(args, "method")?;
+
+	// dest
+	let dest = {
+		if method == "self" {
+			match args.value_of("dest") {
+				Some(d) => d,
+				None => "default",
+			}
+		} else {
+			parse_required(args, "dest")?
+		}
+	};
+
+	// change_outputs
+	let change_outputs = parse_required(args, "change_outputs")?;
+	let change_outputs = parse_u64(change_outputs, "change_outputs")? as usize;
+
+	// max_outputs
+	let max_outputs = 500;
+
+	// input
+	let tx_file = parse_required(args, "input")?;
+
+	// validate input
+	if !Path::new(&tx_file).is_file() {
+		let msg = format!("File {} not found.", &tx_file);
+		return Err(ParseError::ArgumentError(msg));
+	}
+
+	Ok(command::PayInvoiceArgs {
+		input: tx_file.to_string(),
+		message: message,
+		minimum_confirmations: min_c,
+		selection_strategy: selection_strategy.to_owned(),
+		method: method.to_owned(),
+		dest: dest.to_owned(),
+		change_outputs: change_outputs,
+		max_outputs: max_outputs,
+	})
+}
+
 pub fn parse_receive_args(receive_args: &ArgMatches) -> Result<command::ReceiveArgs, ParseError> {
 	// message
 	let message = match receive_args.is_present("message") {
@@ -602,6 +659,10 @@ pub fn wallet_command(
 		("send_invoice", Some(args)) => {
 			let a = arg_parse!(parse_send_invoice_args(&args));
 			command::send_invoice(inst_wallet(), a)
+		}
+		("pay_invoice", Some(args)) => {
+			let a = arg_parse!(parse_pay_invoice_args(&args));
+			command::pay_invoice(inst_wallet(), &global_wallet_args, a)
 		}
 		("receive", Some(args)) => {
 			let a = arg_parse!(parse_receive_args(&args));

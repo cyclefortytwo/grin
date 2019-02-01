@@ -692,6 +692,60 @@ where
 		Ok(())
 	}
 
+	pub fn invoice_tx(
+		&mut self,
+		slate: &mut Slate,
+		src_acct_name: Option<&str>,
+		minimum_confirmations: u64,
+		max_outputs: usize,
+		num_change_outputs: usize,
+		selection_strategy_is_use_all: bool,
+		message: Option<String>,
+	) -> Result<OutputLockFn<W, C, K>, Error> {
+		let mut w = self.wallet.lock();
+		w.open_with_credentials()?;
+		let parent_key_id = match src_acct_name {
+			Some(d) => {
+				let pm = w.get_acct_path(d.to_owned())?;
+				match pm {
+					Some(p) => p.path,
+					None => w.parent_key_id(),
+				}
+			}
+			None => w.parent_key_id(),
+		};
+
+		let tx = updater::retrieve_txs(&mut *w, None, Some(slate.id), Some(&parent_key_id), false)?;
+		for t in &tx {
+			if t.tx_type == TxLogEntryType::TxSent {
+				return Err(ErrorKind::InvoiceAlreadyPaid(slate.id.to_string()).into());
+			}
+		}
+
+		let (mut context, lock_fn) = tx::add_inputs_to_slate(
+			&mut *w,
+			slate,
+			minimum_confirmations,
+			max_outputs,
+			num_change_outputs,
+			selection_strategy_is_use_all,
+			&parent_key_id,
+		)?;
+
+		let _ = slate.fill_round_1(
+			w.keychain(),
+			&mut context.sec_key,
+			&context.sec_nonce,
+			1,
+			message,
+		)?;
+
+		// perform partial sig
+		let _ = slate.fill_round_2(w.keychain(), &context.sec_key, &context.sec_nonce, 1)?;
+
+		Ok(lock_fn)
+	}
+
 	/// Sender finalization of the transaction. Takes the file returned by the
 	/// sender as well as the private file generate on the first send step.
 	/// Builds the complete transaction and sends it to a grin node for

@@ -347,7 +347,6 @@ pub fn receive(
 	Ok(())
 }
 
-/*
 /// Receive command argument
 pub struct PayInvoiceArgs {
 	pub input: String,
@@ -356,6 +355,8 @@ pub struct PayInvoiceArgs {
 	pub selection_strategy: String,
 	pub change_outputs: usize,
 	pub max_outputs: usize,
+	pub method: String,
+	pub dest: String,
 }
 
 pub fn pay_invoice(
@@ -370,7 +371,15 @@ pub fn pay_invoice(
 			error!("Error validating participant messages: {}", e);
 			return Err(e);
 		}
-		let lock_fn = api.invoice_tx(&mut slate, Some(&g_args.account), args.message.clone())?;
+		let lock_fn = api.invoice_tx(
+			&mut slate,
+			Some(&g_args.account),
+			args.minimum_confirmations,
+			args.max_outputs,
+			args.change_outputs,
+			args.selection_strategy == "all",
+			args.message.clone(),
+		)?;
 		let send_tx = format!("{}.response", args.input);
 		adapter.send_tx_async(&send_tx, &slate)?;
 		api.tx_lock_outputs(&slate, lock_fn)?;
@@ -382,7 +391,6 @@ pub fn pay_invoice(
 	})?;
 	Ok(())
 }
-*/
 
 /// Finalize command args
 pub struct FinalizeArgs {
