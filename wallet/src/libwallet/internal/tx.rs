@@ -192,7 +192,7 @@ where
 	let mut tx = None;
 	// don't want to assume this is the right tx, in case of self-sending
 	for t in tx_vec {
-		if t.tx_type == TxLogEntryType::TxSent {
+		if t.tx_type == TxLogEntryType::TxSent || t.tx_type == TxLogEntryType::TxReceived {
 			tx = Some(t.clone());
 			break;
 		}
