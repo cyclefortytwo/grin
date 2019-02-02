@@ -443,21 +443,6 @@ pub fn parse_pay_invoice_args(args: &ArgMatches) -> Result<command::PayInvoiceAr
 	// selection_strategy
 	let selection_strategy = parse_required(args, "selection_strategy")?;
 
-	// method
-	let method = parse_required(args, "method")?;
-
-	// dest
-	let dest = {
-		if method == "self" {
-			match args.value_of("dest") {
-				Some(d) => d,
-				None => "default",
-			}
-		} else {
-			parse_required(args, "dest")?
-		}
-	};
-
 	// change_outputs
 	let change_outputs = parse_required(args, "change_outputs")?;
 	let change_outputs = parse_u64(change_outputs, "change_outputs")? as usize;
@@ -479,8 +464,6 @@ pub fn parse_pay_invoice_args(args: &ArgMatches) -> Result<command::PayInvoiceAr
 		message: message,
 		minimum_confirmations: min_c,
 		selection_strategy: selection_strategy.to_owned(),
-		method: method.to_owned(),
-		dest: dest.to_owned(),
 		change_outputs: change_outputs,
 		max_outputs: max_outputs,
 	})

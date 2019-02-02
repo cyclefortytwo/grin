@@ -924,7 +924,7 @@ where
 		src_acct_name: Option<&str>,
 		amount: u64,
 		message: Option<String>,
-	) -> Result<(Slate, OutputLockFn<W, C, K>), Error> {
+	) -> Result<Slate, Error> {
 		let mut w = self.wallet.lock();
 		w.open_with_credentials()?;
 		let parent_key_id = match src_acct_name {
@@ -959,7 +959,7 @@ where
 		add_fn(&mut *w, &slate.tx, PhantomData, PhantomData)?;
 
 		w.close()?;
-		Ok((slate, add_fn))
+		Ok(slate)
 	}
 
 	/// Receive a transaction from a sender

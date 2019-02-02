@@ -16,7 +16,7 @@ use crate::util::{Mutex, ZeroingString};
 use std::collections::HashMap;
 /// Grin wallet command-line function implementations
 use std::fs::File;
-use std::io::Write;
+use std::io::{stdin, stdout, Write};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -293,7 +293,7 @@ pub fn send_invoice(
 ) -> Result<(), Error> {
 	controller::foreign_single_use(wallet.clone(), |api| {
 		let result = api.initiate_receive_tx(None, args.amount, args.message.clone());
-		let (mut slate, add_fn) = match result {
+		let slate = match result {
 			Ok(s) => {
 				info!(
 					"Invoice created: request {} grin from {}",
@@ -355,8 +355,6 @@ pub struct PayInvoiceArgs {
 	pub selection_strategy: String,
 	pub change_outputs: usize,
 	pub max_outputs: usize,
-	pub method: String,
-	pub dest: String,
 }
 
 pub fn pay_invoice(
@@ -366,6 +364,32 @@ pub fn pay_invoice(
 ) -> Result<(), Error> {
 	let adapter = FileWalletCommAdapter::new();
 	let mut slate = adapter.receive_tx_async(&args.input)?;
+
+	print!(
+		"Do you want to pay a receipt for {} grin ({} outputs) \n with a message:'{}'\n Confirm? [y/n]:",
+		core::amount_to_hr_string(slate.amount, false),
+		slate.tx.outputs().len(),
+		slate.participant_data[0]
+			.message
+			.as_ref()
+			.unwrap_or(&"".to_owned())
+	);
+	let _ = stdout().flush();
+	let mut s = String::new();
+	stdin()
+		.read_line(&mut s)
+		.expect("Did not enter a correct string");
+	match s.trim() {
+		"y" | "Y" => {}
+		"n" | "N" => return Ok(()),
+		_ => {
+			return Err(Error::from(ErrorKind::GenericError(format!(
+				"Cannot parse answer: {}",
+				s
+			))));
+		}
+	}
+
 	controller::owner_single_use(wallet, |api| {
 		if let Err(e) = api.verify_slate_messages(&slate) {
 			error!("Error validating participant messages: {}", e);

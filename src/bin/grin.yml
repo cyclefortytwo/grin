@@ -250,19 +250,6 @@ subcommands:
                   long: change_outputs
                   default_value: "1"
                   takes_value: true
-              - method:
-                  help: Method for sending this transaction (currently supported only file method)
-                  short: m
-                  long: method
-                  possible_values:
-                    - file
-                  default_value: file
-                  takes_value: true
-              - dest:
-                  help: Send the transaction to the provided server (start with http://) or save as file.
-                  short: d
-                  long: dest
-                  takes_value: true
               - message:
                   help: Optional participant message to include
                   short: g
