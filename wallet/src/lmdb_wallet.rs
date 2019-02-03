@@ -71,7 +71,9 @@ fn private_ctx_xor_keys<K>(
 where
 	K: Keychain,
 {
-	let root_key = keychain.derive_key(0, &K::root_key_id())?;
+	let root_key = keychain
+		.derive_key(0, &K::root_key_id())
+		.context(ErrorKind::CannotDeriveKeys)?;
 
 	// derive XOR values for storing secret values in DB
 	// h(root_key|slate_id|"blind")
@@ -207,7 +209,11 @@ where
 			Ok(None)
 		} else {
 			Ok(Some(util::to_hex(
-				self.keychain().commit(amount, &id)?.0.to_vec(),
+				self.keychain()
+					.commit(amount, &id)
+					.context("Cannot commit amount".to_owned())?
+					.0
+					.to_vec(),
 			)))
 		}
 	}
@@ -286,10 +292,15 @@ where
 			.join(TX_SAVE_DIR)
 			.join(filename);
 		let path_buf = Path::new(&path).to_path_buf();
-		let mut stored_tx = File::create(path_buf)?;
+		let mut stored_tx =
+			File::create(path_buf).context(ErrorKind::CannotGetStoredTransaction)?;
 		let tx_hex = util::to_hex(ser::ser_vec(tx).unwrap());;
-		stored_tx.write_all(&tx_hex.as_bytes())?;
-		stored_tx.sync_all()?;
+		stored_tx
+			.write_all(&tx_hex.as_bytes())
+			.context(ErrorKind::CannotGetStoredTransaction)?;
+		stored_tx
+			.sync_all()
+			.context(ErrorKind::CannotGetStoredTransaction)?;
 		Ok(())
 	}
 
@@ -302,9 +313,10 @@ where
 			.join(TX_SAVE_DIR)
 			.join(filename);
 		let tx_file = Path::new(&path).to_path_buf();
-		let mut tx_f = File::open(tx_file)?;
+		let mut tx_f = File::open(tx_file).context(ErrorKind::CannotGetStoredTransaction)?;
 		let mut content = String::new();
-		tx_f.read_to_string(&mut content)?;
+		tx_f.read_to_string(&mut content)
+			.context(ErrorKind::CannotGetStoredTransaction)?;
 		let tx_bin = util::from_hex(content).unwrap();
 		Ok(Some(
 			ser::deserialize::<Transaction>(&mut &tx_bin[..]).unwrap(),

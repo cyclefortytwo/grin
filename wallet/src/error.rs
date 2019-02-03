@@ -13,13 +13,7 @@
 // limitations under the License.
 
 //! Implementation specific error types
-use crate::api;
-use crate::core::core::transaction;
-use crate::core::libtx;
-use crate::keychain;
-use crate::libwallet;
 use failure::{Backtrace, Context, Fail};
-use std::env;
 use std::fmt::{self, Display};
 
 /// Error definition
@@ -31,22 +25,6 @@ pub struct Error {
 /// Wallet errors, mostly wrappers around underlying crypto or I/O errors.
 #[derive(Clone, Eq, PartialEq, Debug, Fail)]
 pub enum ErrorKind {
-	/// LibTX Error
-	#[fail(display = "LibTx Error")]
-	LibTX(libtx::ErrorKind),
-
-	/// LibWallet Error
-	#[fail(display = "LibWallet Error: {}", _1)]
-	LibWallet(libwallet::ErrorKind, String),
-
-	/// Keychain error
-	#[fail(display = "Keychain error")]
-	Keychain(keychain::Error),
-
-	/// Transaction Error
-	#[fail(display = "Transaction error")]
-	Transaction(transaction::Error),
-
 	/// Secp Error
 	#[fail(display = "Secp error")]
 	Secp,
@@ -62,10 +40,6 @@ pub enum ErrorKind {
 	/// Error when formatting json
 	#[fail(display = "Serde JSON error")]
 	Format,
-
-	/// Error when contacting a node through its API
-	#[fail(display = "Node API error")]
-	Node(api::ErrorKind),
 
 	/// Error originating from hyper.
 	#[fail(display = "Hyper error")]
@@ -95,6 +69,54 @@ pub enum ErrorKind {
 	#[fail(display = "BIP39 Mnemonic (word list) Error")]
 	Mnemonic,
 
+	#[fail(display = "Cannot instantiate walllet")]
+	CannotInstantiateWalllet,
+
+	#[fail(display = "Cannot start listening")]
+	ListenError,
+
+	#[fail(display = "Account error")]
+	AccountError(String),
+
+	#[fail(display = "Cannot init wallet")]
+	CannotInitWallet,
+
+	#[fail(display = "Cannot send slate")]
+	CannotSendSlate,
+
+	#[fail(display = "Cannot send invoice")]
+	CannotSendInvoice,
+
+	#[fail(display = "Cannot receive slate")]
+	CannotReceiveSlate,
+
+	#[fail(display = "Cannot finalize slate")]
+	CannotFinalizeSlate,
+
+	#[fail(display = "Cannot derive keychain")]
+	CannotDeriveKeychain,
+
+	#[fail(display = "Cannot repair wallet")]
+	WalletRepairError,
+
+	#[fail(display = "Cannot restore wallet")]
+	WalletRestoreError,
+
+	#[fail(display = "Cannot cancel transaction")]
+	CannotCancelTransaction,
+
+	#[fail(display = "Cannot repost transaction")]
+	CannotRepostTransaction,
+
+	#[fail(display = "Cannot get transaction list")]
+	CannotGetTransactions,
+
+	#[fail(display = "Cannot get outputs list")]
+	CannotGetOutputs,
+
+	#[fail(display = "Cannot get info")]
+	CannotGetInfo,
+
 	/// Command line argument error
 	#[fail(display = "{}", _0)]
 	ArgumentError(String),
@@ -115,28 +137,8 @@ impl Fail for Error {
 }
 
 impl Display for Error {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		let show_bt = match env::var("RUST_BACKTRACE") {
-			Ok(r) => {
-				if r == "1" {
-					true
-				} else {
-					false
-				}
-			}
-			Err(_) => false,
-		};
-		let backtrace = match self.backtrace() {
-			Some(b) => format!("{}", b),
-			None => String::from("Unknown"),
-		};
-		let inner_output = format!("{}", self.inner,);
-		let backtrace_output = format!("\nBacktrace: {}", backtrace);
-		let mut output = inner_output.clone();
-		if show_bt {
-			output.push_str(&backtrace_output);
-		}
-		Display::fmt(&output, f)
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		Display::fmt(&self.inner, f)
 	}
 }
 
@@ -144,14 +146,6 @@ impl Error {
 	/// get kind
 	pub fn kind(&self) -> ErrorKind {
 		self.inner.get_context().clone()
-	}
-	/// get cause
-	pub fn cause(&self) -> Option<&dyn Fail> {
-		self.inner.cause()
-	}
-	/// get backtrace
-	pub fn backtrace(&self) -> Option<&Backtrace> {
-		self.inner.backtrace()
 	}
 }
 
@@ -169,42 +163,8 @@ impl From<Context<ErrorKind>> for Error {
 	}
 }
 
-impl From<api::Error> for Error {
-	fn from(error: api::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::Node(error.kind().clone())),
-		}
-	}
-}
-
-impl From<keychain::Error> for Error {
-	fn from(error: keychain::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::Keychain(error)),
-		}
-	}
-}
-
-impl From<transaction::Error> for Error {
-	fn from(error: transaction::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::Transaction(error)),
-		}
-	}
-}
-
-impl From<libwallet::Error> for Error {
-	fn from(error: libwallet::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::LibWallet(error.kind(), format!("{}", error))),
-		}
-	}
-}
-
-impl From<libtx::Error> for Error {
-	fn from(error: libtx::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::LibTX(error.kind())),
-		}
+impl From<Context<String>> for Error {
+	fn from(inner: Context<String>) -> Error {
+		ErrorKind::GenericError(inner.get_context().clone()).into()
 	}
 }

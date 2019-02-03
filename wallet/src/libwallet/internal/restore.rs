@@ -18,8 +18,9 @@ use crate::core::libtx::proof;
 use crate::keychain::{ExtKeychain, Identifier, Keychain};
 use crate::libwallet::internal::{keys, updater};
 use crate::libwallet::types::*;
-use crate::libwallet::Error;
+use crate::libwallet::{Error, ErrorKind};
 use crate::util::secp::{key::SecretKey, pedersen};
+use failure::ResultExt;
 use std::collections::HashMap;
 
 /// Utility struct for return values from below
@@ -77,7 +78,8 @@ where
 		let (commit, proof, is_coinbase, height, mmr_index) = output;
 		// attempt to unwind message from the RP and get a value
 		// will fail if it's not ours
-		let info = proof::rewind(wallet.keychain(), *commit, None, *proof)?;
+		let info = proof::rewind(wallet.keychain(), *commit, None, *proof)
+			.context(ErrorKind::WalletRestoreError)?;
 
 		if !info.success {
 			continue;

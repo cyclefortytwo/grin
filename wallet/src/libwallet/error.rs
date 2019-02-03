@@ -14,13 +14,9 @@
 
 //! Error types for libwallet
 
-use crate::core::core::transaction;
-use crate::core::libtx;
-use crate::keychain;
 use failure::{Backtrace, Context, Fail};
 use std::env;
 use std::fmt::{self, Display};
-use std::io;
 
 /// Error definition
 #[derive(Debug, Fail)]
@@ -79,18 +75,6 @@ pub enum ErrorKind {
 		recipient_fee_disp: String,
 	},
 
-	/// LibTX Error
-	#[fail(display = "LibTx Error")]
-	LibTX(libtx::ErrorKind),
-
-	/// Keychain error
-	#[fail(display = "Keychain error")]
-	Keychain(keychain::Error),
-
-	/// Transaction Error
-	#[fail(display = "Transaction error")]
-	Transaction(transaction::Error),
-
 	/// API Error
 	#[fail(display = "Client Callback Error: {}", _0)]
 	ClientCallback(String),
@@ -114,14 +98,6 @@ pub enum ErrorKind {
 	/// An error in the format of the JSON structures exchanged by the wallet
 	#[fail(display = "JSON format error: {}", _0)]
 	Format(String),
-
-	/// Other serialization errors
-	#[fail(display = "Ser/Deserialization error")]
-	Deser(crate::core::ser::Error),
-
-	/// IO Error
-	#[fail(display = "I/O error")]
-	IO,
 
 	/// Error when contacting a node through its API
 	#[fail(display = "Node API error")]
@@ -195,6 +171,50 @@ pub enum ErrorKind {
 	#[fail(display = "Account Label '{}' already exists", _0)]
 	AccountLabelAlreadyExists(String),
 
+	/// Cannot send slate
+	#[fail(display = "Cannot send slate")]
+	SlateSendError,
+
+	/// Cannot receive slate
+	#[fail(display = "Cannot receive slate")]
+	SlateReceiveError,
+
+	/// Cannot finalize slate
+	#[fail(display = "Cannot finalize slate")]
+	SlateFinalizeError,
+
+	/// Cannot add output to slate
+	#[fail(display = "Cannot add output to slate")]
+	SlateAddOutputError,
+
+	/// Cannot add input to slate
+	#[fail(display = "Cannot add input to slate")]
+	SlateAddInputError,
+
+	/// Cannot verify slate message
+	#[fail(display = "Cannot verify slate message")]
+	SlateMessageVerificationError,
+
+	/// Cannot get stored transaction
+	#[fail(display = "Cannot get stored transaction")]
+	CannotGetStoredTransaction,
+
+	/// Cannot store transaction
+	#[fail(display = "Cannot store transaction")]
+	CannotStoreTransaction,
+
+	/// Cannot save transaction in file
+	#[fail(display = "Cannot save transaction in file")]
+	CannotDumpTransaction,
+
+	/// Cannot derive key
+	#[fail(display = "Cannot derive key")]
+	CannotDeriveKeys,
+
+	/// Cannot restore wallet
+	#[fail(display = "Cannot restore wallet")]
+	WalletRestoreError,
+
 	/// Reference unknown account label
 	#[fail(display = "Unknown Account Label '{}'", _0)]
 	UnknownAccountLabel(String),
@@ -266,42 +286,8 @@ impl From<Context<ErrorKind>> for Error {
 	}
 }
 
-impl From<io::Error> for Error {
-	fn from(_error: io::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::IO),
-		}
-	}
-}
-
-impl From<keychain::Error> for Error {
-	fn from(error: keychain::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::Keychain(error)),
-		}
-	}
-}
-
-impl From<libtx::Error> for Error {
-	fn from(error: crate::core::libtx::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::LibTX(error.kind())),
-		}
-	}
-}
-
-impl From<transaction::Error> for Error {
-	fn from(error: transaction::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::Transaction(error)),
-		}
-	}
-}
-
-impl From<crate::core::ser::Error> for Error {
-	fn from(error: crate::core::ser::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::Deser(error)),
-		}
+impl From<Context<String>> for Error {
+	fn from(inner: Context<String>) -> Error {
+		ErrorKind::GenericError(inner.get_context().clone()).into()
 	}
 }

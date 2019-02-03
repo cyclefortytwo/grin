@@ -23,6 +23,8 @@ use crate::libwallet::types::*;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
+use failure::ResultExt;
+
 /// Initialize a transaction on the sender side, returns a corresponding
 /// libwallet transaction slate with the appropriate inputs selected,
 /// and saves the private wallet identifiers of our selected outputs
@@ -52,12 +54,15 @@ where
 		change_outputs,
 		selection_strategy_is_use_all,
 		&parent_key_id,
-	)?;
+	)
+	.context(ErrorKind::SlateAddInputError)?;
 
 	slate.fee = fee;
 
 	let keychain = wallet.keychain().clone();
-	let blinding = slate.add_transaction_elements(&keychain, elems)?;
+	let blinding = slate
+		.add_transaction_elements(&keychain, elems)
+		.context(ErrorKind::SlateAddInputError)?;
 
 	// Create our own private context
 	let mut context = Context::new(
@@ -169,8 +174,9 @@ where
 	let height = slate.height;
 
 	let slate_id = slate.id.clone();
-	let blinding =
-		slate.add_transaction_elements(&keychain, vec![build::output(amount, key_id.clone())])?;
+	let blinding = slate
+		.add_transaction_elements(&keychain, vec![build::output(amount, key_id.clone())])
+		.context(ErrorKind::SlateAddOutputError)?;
 
 	// Add blinding sum to our context
 	let mut context = Context::new(

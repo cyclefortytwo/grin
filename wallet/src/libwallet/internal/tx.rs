@@ -16,6 +16,8 @@
 
 use uuid::Uuid;
 
+use failure::ResultExt;
+
 use crate::core::libtx::slate::Slate;
 use crate::keychain::{Identifier, Keychain};
 use crate::libwallet::internal::{selection, updater};
@@ -60,7 +62,8 @@ where
 	K: Keychain,
 {
 	// sender should always refresh outputs
-	updater::refresh_outputs(wallet, parent_key_id, false)?;
+	updater::refresh_outputs(wallet, parent_key_id, false)
+		.context(ErrorKind::SlateAddInputError)?;
 
 	// Sender selects outputs into a new slate and save our corresponding keys in
 	// a transaction context. The secret key in our transaction context will be
@@ -77,18 +80,21 @@ where
 		num_change_outputs,
 		selection_strategy_is_use_all,
 		parent_key_id.clone(),
-	)?;
+	)
+	.context(ErrorKind::SlateAddInputError)?;
 
 	// Generate a kernel offset and subtract from our context's secret key. Store
 	// the offset in the slate's transaction kernel, and adds our public key
 	// information to the slate
-	let _ = slate.fill_round_1(
-		wallet.keychain(),
-		&mut context.sec_key,
-		&context.sec_nonce,
-		participant_id,
-		message,
-	)?;
+	let _ = slate
+		.fill_round_1(
+			wallet.keychain(),
+			&mut context.sec_key,
+			&context.sec_nonce,
+			participant_id,
+			message,
+		)
+		.context(ErrorKind::SlateAddInputError)?;
 
 	Ok((context, sender_lock_fn))
 }
@@ -108,24 +114,29 @@ where
 {
 	// create an output using the amount in the slate
 	let (_, mut context, create_fn) =
-		selection::build_recipient_output(wallet, slate, parent_key_id.clone())?;
+		selection::build_recipient_output(wallet, slate, parent_key_id.clone())
+			.context(ErrorKind::SlateAddOutputError)?;
 
 	// fill public keys
-	let _ = slate.fill_round_1(
-		wallet.keychain(),
-		&mut context.sec_key,
-		&context.sec_nonce,
-		1,
-		message,
-	)?;
+	let _ = slate
+		.fill_round_1(
+			wallet.keychain(),
+			&mut context.sec_key,
+			&context.sec_nonce,
+			1,
+			message,
+		)
+		.context(ErrorKind::SlateAddOutputError)?;
 
 	// perform partial sig
-	let _ = slate.fill_round_2(
-		wallet.keychain(),
-		&context.sec_key,
-		&context.sec_nonce,
-		participant_id,
-	)?;
+	let _ = slate
+		.fill_round_2(
+			wallet.keychain(),
+			&context.sec_key,
+			&context.sec_nonce,
+			participant_id,
+		)
+		.context(ErrorKind::SlateAddOutputError)?;
 
 	Ok((context, create_fn))
 }
@@ -142,17 +153,18 @@ where
 	C: NodeClient,
 	K: Keychain,
 {
-	let _ = slate.fill_round_2(
-		wallet.keychain(),
-		&context.sec_key,
-		&context.sec_nonce,
-		participant_id,
-	)?;
+	let _ = slate
+		.fill_round_2(
+			wallet.keychain(),
+			&context.sec_key,
+			&context.sec_nonce,
+			participant_id,
+		)
+		.context(ErrorKind::SlateFinalizeError)?;
 	// Final transaction can be built by anyone at this stage
-	let res = slate.finalize(wallet.keychain());
-	if let Err(e) = res {
-		Err(ErrorKind::LibTX(e.kind()))?
-	}
+	slate
+		.finalize(wallet.keychain())
+		.context(ErrorKind::SlateFinalizeError)?;
 	Ok(())
 }
 

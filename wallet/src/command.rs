@@ -21,12 +21,15 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
+use failure::ResultExt;
+
 use serde_json as json;
 use uuid::Uuid;
 
 use crate::api::TLSConfig;
 use crate::core::core;
 use crate::keychain;
+use crate::libwallet;
 
 use crate::error::{Error, ErrorKind};
 use crate::{controller, display, HTTPNodeClient, WalletConfig, WalletInst, WalletSeed};
@@ -68,7 +71,8 @@ pub fn init(g_args: &GlobalArgs, args: InitArgs) -> Result<(), Error> {
 		g_args.node_api_secret.clone(),
 	);
 	let _: LMDBBackend<HTTPNodeClient, keychain::ExtKeychain> =
-		LMDBBackend::new(args.config.clone(), &args.password, client_n)?;
+		LMDBBackend::new(args.config.clone(), &args.password, client_n)
+			.context(ErrorKind::CannotInitWallet)?;
 	info!("Wallet database backend created");
 	Ok(())
 }
@@ -125,16 +129,15 @@ pub fn listen(config: &WalletConfig, args: &ListenArgs, g_args: &GlobalArgs) -> 
 		_ => NullWalletCommAdapter::new(),
 	};
 
-	let res = adapter.listen(
-		params,
-		config.clone(),
-		&g_args.password.clone().unwrap(),
-		&g_args.account,
-		g_args.node_api_secret.clone(),
-	);
-	if let Err(e) = res {
-		return Err(ErrorKind::LibWallet(e.kind(), e.cause_string()).into());
-	}
+	adapter
+		.listen(
+			params,
+			config.clone(),
+			&g_args.password.clone().unwrap(),
+			&g_args.account,
+			g_args.node_api_secret.clone(),
+		)
+		.context(ErrorKind::ListenError)?;
 	Ok(())
 }
 
@@ -143,16 +146,14 @@ pub fn owner_api(
 	config: &WalletConfig,
 	g_args: &GlobalArgs,
 ) -> Result<(), Error> {
-	let res = controller::owner_listener(
+	controller::owner_listener(
 		wallet,
 		config.owner_api_listen_addr().as_str(),
 		g_args.node_api_secret.clone(),
 		g_args.tls_conf.clone(),
 		config.owner_api_include_foreign.clone(),
-	);
-	if let Err(e) = res {
-		return Err(ErrorKind::LibWallet(e.kind(), e.cause_string()).into());
-	}
+	)
+	.context(ErrorKind::ListenError)?;
 	Ok(())
 }
 
@@ -166,30 +167,25 @@ pub fn account(
 	args: AccountArgs,
 ) -> Result<(), Error> {
 	if args.create.is_none() {
-		let res = controller::owner_single_use(wallet, |api| {
+		controller::owner_single_use(wallet, |api| {
 			let acct_mappings = api.accounts()?;
 			// give logging thread a moment to catch up
 			thread::sleep(Duration::from_millis(200));
 			display::accounts(acct_mappings);
 			Ok(())
-		});
-		if let Err(e) = res {
-			error!("Error listing accounts: {}", e);
-			return Err(ErrorKind::LibWallet(e.kind(), e.cause_string()).into());
-		}
+		})
+		.context(ErrorKind::AccountError(
+			"Cannot get accounts list".to_owned(),
+		))?;
 	} else {
 		let label = args.create.unwrap();
-		let res = controller::owner_single_use(wallet, |api| {
+		controller::owner_single_use(wallet, |api| {
 			api.create_account_path(&label)?;
 			thread::sleep(Duration::from_millis(200));
 			info!("Account: '{}' Created!", label);
 			Ok(())
-		});
-		if let Err(e) = res {
-			thread::sleep(Duration::from_millis(200));
-			error!("Error creating account '{}': {}", label, e);
-			return Err(ErrorKind::LibWallet(e.kind(), e.cause_string()).into());
-		}
+		})
+		.context(ErrorKind::AccountError("Cannot create account".to_owned()))?;
 	}
 	Ok(())
 }
@@ -275,7 +271,8 @@ pub fn send(
 			}
 		}
 		Ok(())
-	})?;
+	})
+	.context(ErrorKind::CannotSendSlate)?;
 	Ok(())
 }
 
@@ -291,7 +288,9 @@ pub fn receive(
 	args: ReceiveArgs,
 ) -> Result<(), Error> {
 	let adapter = FileWalletCommAdapter::new();
-	let mut slate = adapter.receive_tx_async(&args.input)?;
+	let mut slate = adapter
+		.receive_tx_async(&args.input)
+		.context(ErrorKind::CannotReceiveSlate)?;
 	controller::foreign_single_use(wallet, |api| {
 		if let Err(e) = api.verify_slate_messages(&slate) {
 			error!("Error validating participant messages: {}", e);
@@ -299,9 +298,12 @@ pub fn receive(
 		}
 		api.receive_tx(&mut slate, Some(&g_args.account), args.message.clone())?;
 		Ok(())
-	})?;
+	})
+	.context(ErrorKind::CannotReceiveSlate)?;
 	let send_tx = format!("{}.response", args.input);
-	adapter.send_tx_async(&send_tx, &slate)?;
+	adapter
+		.send_tx_async(&send_tx, &slate)
+		.context(ErrorKind::CannotReceiveSlate)?;
 	info!(
 		"Response file {}.response generated, sending it back to the transaction originator.",
 		args.input
@@ -320,7 +322,9 @@ pub fn finalize(
 	args: FinalizeArgs,
 ) -> Result<(), Error> {
 	let adapter = FileWalletCommAdapter::new();
-	let mut slate = adapter.receive_tx_async(&args.input)?;
+	let mut slate = adapter
+		.receive_tx_async(&args.input)
+		.context(ErrorKind::CannotFinalizeSlate)?;
 	controller::owner_single_use(wallet.clone(), |api| {
 		if let Err(e) = api.verify_slate_messages(&slate) {
 			error!("Error validating participant messages: {}", e);
@@ -339,7 +343,8 @@ pub fn finalize(
 				Err(e)
 			}
 		}
-	})?;
+	})
+	.context(ErrorKind::CannotFinalizeSlate)?;
 	Ok(())
 }
 
@@ -359,7 +364,8 @@ pub fn info(
 			api.retrieve_summary_info(true, args.minimum_confirmations)?;
 		display::info(&g_args.account, &wallet_info, validated, dark_scheme);
 		Ok(())
-	})?;
+	})
+	.context(ErrorKind::CannotGetInfo)?;
 	Ok(())
 }
 
@@ -373,7 +379,8 @@ pub fn outputs(
 		let (validated, outputs) = api.retrieve_outputs(g_args.show_spent, true, None)?;
 		display::outputs(&g_args.account, height, validated, outputs, dark_scheme)?;
 		Ok(())
-	})?;
+	})
+	.context(ErrorKind::CannotGetOutputs)?;
 	Ok(())
 }
 
@@ -411,7 +418,8 @@ pub fn txs(
 			}
 		};
 		Ok(())
-	})?;
+	})
+	.context(ErrorKind::CannotGetTransactions)?;
 	Ok(())
 }
 
@@ -450,14 +458,20 @@ pub fn repost(
 				return Ok(());
 			}
 			Some(f) => {
-				let mut tx_file = File::create(f.clone())?;
-				tx_file.write_all(json::to_string(&stored_tx).unwrap().as_bytes())?;
-				tx_file.sync_all()?;
+				let mut tx_file =
+					File::create(f.clone()).context(libwallet::ErrorKind::CannotDumpTransaction)?;
+				tx_file
+					.write_all(json::to_string(&stored_tx).unwrap().as_bytes())
+					.context(libwallet::ErrorKind::CannotDumpTransaction)?;
+				tx_file
+					.sync_all()
+					.context(libwallet::ErrorKind::CannotDumpTransaction)?;
 				info!("Dumped transaction data for tx {} to {}", args.id, f);
 				return Ok(());
 			}
 		}
-	})?;
+	})
+	.context(ErrorKind::CannotRepostTransaction)?;
 	Ok(())
 }
 
@@ -484,7 +498,8 @@ pub fn cancel(
 				Err(e)
 			}
 		}
-	})?;
+	})
+	.context(ErrorKind::CannotCancelTransaction)?;
 	Ok(())
 }
 
@@ -504,7 +519,8 @@ pub fn restore(
 				Err(e)
 			}
 		}
-	})?;
+	})
+	.context(ErrorKind::WalletRestoreError)?;
 	Ok(())
 }
 
@@ -526,6 +542,7 @@ pub fn check_repair(
 				Err(e)
 			}
 		}
-	})?;
+	})
+	.context(ErrorKind::WalletRepairError)?;
 	Ok(())
 }

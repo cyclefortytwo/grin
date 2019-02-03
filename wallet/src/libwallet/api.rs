@@ -34,6 +34,8 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use failure::ResultExt;
+
 use crate::core::core::hash::Hashed;
 use crate::core::core::Transaction;
 use crate::core::libtx::slate::Slate;
@@ -756,7 +758,9 @@ where
 	/// Verifies all messages in the slate match their public keys
 	pub fn verify_slate_messages(&mut self, slate: &Slate) -> Result<(), Error> {
 		let secp = Secp256k1::with_caps(ContextFlag::VerifyOnly);
-		slate.verify_messages(&secp)?;
+		slate
+			.verify_messages(&secp)
+			.context(ErrorKind::SlateMessageVerificationError)?;
 		Ok(())
 	}
 
@@ -851,7 +855,9 @@ where
 	/// Verifies all messages in the slate match their public keys
 	pub fn verify_slate_messages(&mut self, slate: &Slate) -> Result<(), Error> {
 		let secp = Secp256k1::with_caps(ContextFlag::VerifyOnly);
-		slate.verify_messages(&secp)?;
+		slate
+			.verify_messages(&secp)
+			.context(ErrorKind::SlateMessageVerificationError)?;
 		Ok(())
 	}
 

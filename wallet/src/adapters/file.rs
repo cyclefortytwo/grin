@@ -22,6 +22,8 @@ use crate::{WalletCommAdapter, WalletConfig};
 use serde_json as json;
 use std::collections::HashMap;
 
+use failure::ResultExt;
+
 #[derive(Clone)]
 pub struct FileWalletCommAdapter {}
 
@@ -42,16 +44,20 @@ impl WalletCommAdapter for FileWalletCommAdapter {
 	}
 
 	fn send_tx_async(&self, dest: &str, slate: &Slate) -> Result<(), Error> {
-		let mut pub_tx = File::create(dest)?;
-		pub_tx.write_all(json::to_string(&slate).unwrap().as_bytes())?;
-		pub_tx.sync_all()?;
+		let mut pub_tx = File::create(dest).context(ErrorKind::SlateSendError)?;
+		pub_tx
+			.write_all(json::to_string(&slate).unwrap().as_bytes())
+			.context(ErrorKind::SlateSendError)?;
+		pub_tx.sync_all().context(ErrorKind::SlateSendError)?;
 		Ok(())
 	}
-
+	/// Cannot send slate
 	fn receive_tx_async(&self, params: &str) -> Result<Slate, Error> {
-		let mut pub_tx_f = File::open(params)?;
+		let mut pub_tx_f = File::open(params).context(ErrorKind::SlateSendError)?;
 		let mut content = String::new();
-		pub_tx_f.read_to_string(&mut content)?;
+		pub_tx_f
+			.read_to_string(&mut content)
+			.context(ErrorKind::SlateSendError)?;
 		Ok(json::from_str(&content).map_err(|err| ErrorKind::Format(err.to_string()))?)
 	}
 

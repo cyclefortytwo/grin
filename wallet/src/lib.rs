@@ -23,7 +23,9 @@ extern crate prettytable;
 extern crate serde_derive;
 #[macro_use]
 extern crate log;
-use failure;
+
+use failure::ResultExt;
+
 use grin_api as api;
 use grin_core as core;
 use grin_keychain as keychain;
@@ -65,8 +67,11 @@ pub fn instantiate_wallet(
 ) -> Result<Arc<Mutex<WalletInst<impl NodeClient, keychain::ExtKeychain>>>, Error> {
 	// First test decryption, so we can abort early if we have the wrong password
 	let _ = WalletSeed::from_file(&wallet_config, passphrase)?;
-	let mut db_wallet = LMDBBackend::new(wallet_config.clone(), passphrase, node_client)?;
-	db_wallet.set_parent_key_id_by_name(account)?;
+	let mut db_wallet = LMDBBackend::new(wallet_config.clone(), passphrase, node_client)
+		.context(ErrorKind::CannotInstantiateWalllet)?;
+	db_wallet
+		.set_parent_key_id_by_name(account)
+		.context(ErrorKind::CannotInstantiateWalllet)?;
 	info!("Using LMDB Backend for wallet");
 	Ok(Arc::new(Mutex::new(db_wallet)))
 }

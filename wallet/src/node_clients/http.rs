@@ -28,6 +28,8 @@ use crate::libwallet;
 use crate::util;
 use crate::util::secp::pedersen;
 
+use failure::Fail;
+
 #[derive(Clone)]
 pub struct HTTPNodeClient {
 	node_url: String,
