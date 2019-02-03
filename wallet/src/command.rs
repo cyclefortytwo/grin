@@ -13,6 +13,7 @@
 // limitations under the License.
 
 use crate::util::{Mutex, ZeroingString};
+use failure::Fail;
 use std::collections::HashMap;
 /// Grin wallet command-line function implementations
 use std::fs::File;

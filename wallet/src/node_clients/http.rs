@@ -15,7 +15,7 @@
 //! Client functions, implementations of the NodeClient trait
 //! specific to the FileWallet
 
-use failure::ResultExt;
+use failure::{Fail, ResultExt};
 use futures::{stream, Stream};
 
 use crate::libwallet::types::*;

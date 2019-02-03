@@ -23,7 +23,7 @@ use std::fmt::{self, Display};
 use std::io;
 
 /// Error definition
-#[derive(Debug, Fail)]
+#[derive(Debug)]
 pub struct Error {
 	inner: Context<ErrorKind>,
 }
@@ -204,6 +204,7 @@ pub enum ErrorKind {
 	GenericError(String),
 }
 
+/*
 impl Display for Error {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let show_bt = match env::var("RUST_BACKTRACE") {
@@ -229,6 +230,12 @@ impl Display for Error {
 		Display::fmt(&output, f)
 	}
 }
+*/
+impl Display for Error {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		Display::fmt(&self.inner, f)
+	}
+}
 
 impl Error {
 	/// get kind
@@ -242,12 +249,14 @@ impl Error {
 			None => format!("Unknown"),
 		}
 	}
-	/// get cause
-	pub fn cause(&self) -> Option<&dyn Fail> {
+}
+
+impl Fail for Error {
+	fn cause(&self) -> Option<&Fail> {
 		self.inner.cause()
 	}
-	/// get backtrace
-	pub fn backtrace(&self) -> Option<&Backtrace> {
+
+	fn backtrace(&self) -> Option<&Backtrace> {
 		self.inner.backtrace()
 	}
 }
@@ -284,9 +293,8 @@ impl From<keychain::Error> for Error {
 
 impl From<libtx::Error> for Error {
 	fn from(error: crate::core::libtx::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::LibTX(error.kind())),
-		}
+		let kind = error.kind();
+		error.context(ErrorKind::LibTX(kind)).into()
 	}
 }
 

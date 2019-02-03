@@ -29,6 +29,7 @@ use crate::libwallet::{Error, ErrorKind};
 use crate::util::secp::pedersen;
 use crate::util::to_base64;
 use crate::util::Mutex;
+use failure::Fail;
 use failure::ResultExt;
 use futures::future::{err, ok};
 use futures::{Future, Stream};

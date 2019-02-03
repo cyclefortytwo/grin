@@ -145,14 +145,6 @@ impl Error {
 	pub fn kind(&self) -> ErrorKind {
 		self.inner.get_context().clone()
 	}
-	/// get cause
-	pub fn cause(&self) -> Option<&dyn Fail> {
-		self.inner.cause()
-	}
-	/// get backtrace
-	pub fn backtrace(&self) -> Option<&Backtrace> {
-		self.inner.backtrace()
-	}
 }
 
 impl From<ErrorKind> for Error {
@@ -171,40 +163,36 @@ impl From<Context<ErrorKind>> for Error {
 
 impl From<api::Error> for Error {
 	fn from(error: api::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::Node(error.kind().clone())),
-		}
+		let kind = error.kind().clone();
+		error.context(ErrorKind::Node(kind)).into()
 	}
 }
 
 impl From<keychain::Error> for Error {
 	fn from(error: keychain::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::Keychain(error)),
-		}
+		let e = error.clone();
+		error.context(ErrorKind::Keychain(e)).into()
 	}
 }
 
 impl From<transaction::Error> for Error {
 	fn from(error: transaction::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::Transaction(error)),
-		}
+		let e = error.clone();
+		error.context(ErrorKind::Transaction(e)).into()
 	}
 }
 
 impl From<libwallet::Error> for Error {
 	fn from(error: libwallet::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::LibWallet(error.kind(), format!("{}", error))),
-		}
+		let s = format!("{}", error);
+		let kind = error.kind();
+		error.context(ErrorKind::LibWallet(kind, s)).into()
 	}
 }
 
 impl From<libtx::Error> for Error {
 	fn from(error: libtx::Error) -> Error {
-		Error {
-			inner: Context::new(ErrorKind::LibTX(error.kind())),
-		}
+		let kind = error.kind();
+		error.context(ErrorKind::LibTX(kind)).into()
 	}
 }
