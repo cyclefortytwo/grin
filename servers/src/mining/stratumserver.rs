@@ -20,7 +20,7 @@ use tokio::io::AsyncRead;
 use tokio::io::{lines, write_all};
 use tokio::net::TcpListener;
 
-use crate::util::RwLock;
+use crate::util::{deadlock_detector, RwLock};
 use chrono::prelude::Utc;
 use serde;
 use serde_json;
@@ -815,6 +815,7 @@ impl StratumServer {
 			self.id, edge_bits, proof_size
 		);
 
+		deadlock_detector();
 		self.sync_state = sync_state;
 
 		let listen_addr = self
