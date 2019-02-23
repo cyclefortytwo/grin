@@ -53,12 +53,6 @@ const KERNEL_SUBDIR: &'static str = "kernel";
 const TXHASHSET_ZIP: &'static str = "txhashset_snapshot";
 
 const EXPECTED_ZIP_SUBDIRS: [&'static str; 3] = [OUTPUT_SUBDIR, RANGE_PROOF_SUBDIR, KERNEL_SUBDIR];
-const EXPECTED_ZIP_FILES: [&'static str; 4] = [
-	"pmmr_data.bin",
-	"pmmr_hash.bin",
-	"pmmr_leaf.bin",
-	"pmmr_prun.bin",
-];
 
 struct PMMRHandle<T: PMMRable> {
 	backend: PMMRBackend<T>,
@@ -1458,27 +1452,21 @@ pub fn zip_write(
 	check_and_remove_files(&txhashset_path, header)
 }
 
-macro_rules! file_name {
-	($file:expr) => {
-		match $file.file_name() {
-			None => "",
-			Some(s) => s.to_str().unwrap_or(""),
-			}
-	};
-}
-
 fn expected_file(path: &Path) -> bool {
-	let no_parent = |p: &Path| p.parent().is_none() || file_name!(p.parent().unwrap()) == "";
-
-	if no_parent(path) {
-		EXPECTED_ZIP_SUBDIRS.contains(&file_name!(path))
-	} else {
-		let dir = path.parent().unwrap();
-		let fname = file_name!(path);
-		(EXPECTED_ZIP_FILES.contains(&fname) || fname.starts_with("pmmr_leaf.bin"))
-			&& EXPECTED_ZIP_SUBDIRS.contains(&file_name!(dir))
-			&& no_parent(dir)
+	use lazy_static::lazy_static;
+	use regex::Regex;
+	let s_path = path.to_str().unwrap_or_else(|| "");
+	lazy_static! {
+		static ref RE: Regex = Regex::new(
+			format!(
+				r#"^({}|{}|{})/pmmr_(hash|data|leaf|prun)\.bin(\.\w*)?$"#,
+				OUTPUT_SUBDIR, KERNEL_SUBDIR, RANGE_PROOF_SUBDIR
+			)
+			.as_str()
+		)
+		.unwrap();
 	}
+	RE.is_match(&s_path) || EXPECTED_ZIP_SUBDIRS.contains(&s_path)
 }
 
 /// Check a txhashset directory and remove any unexpected
@@ -1631,10 +1619,16 @@ mod tests {
 
 	#[test]
 	fn test_expected_files() {
-		assert!(expected_file(Path::new("kernel/")));
-		assert!(!expected_file(Path::new("kernels/")));
+		assert!(!expected_file(Path::new("kernels")));
+		assert!(!expected_file(Path::new("xkernel")));
 		assert!(expected_file(Path::new("kernel")));
 		assert!(expected_file(Path::new("kernel/pmmr_data.bin")));
+		assert!(expected_file(Path::new("kernel/pmmr_hash.bin")));
+		assert!(expected_file(Path::new("kernel/pmmr_leaf.bin")));
+		assert!(expected_file(Path::new("kernel/pmmr_prun.bin")));
+		assert!(expected_file(Path::new("kernel/pmmr_leaf.bin.deadbeef")));
 		assert!(!expected_file(Path::new("xkernel/pmmr_data.bin")));
+		assert!(!expected_file(Path::new("kernel/pmmrx_data.bin")));
+		assert!(!expected_file(Path::new("kernel/pmmr_data.binx")));
 	}
 }
