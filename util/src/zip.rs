@@ -62,15 +62,21 @@ pub fn compress(src_dir: &Path, dst_file: &File) -> ZipResult<()> {
 }
 
 /// Decompress a source file into the provided destination path.
-pub fn decompress<R>(src_file: R, dest: &Path) -> ZipResult<()>
+pub fn decompress<R, F>(src_file: R, dest: &Path, expected: F) -> ZipResult<()>
 where
 	R: io::Read + io::Seek,
+	F: Fn(&Path) -> bool,
 {
 	let mut archive = zip_rs::ZipArchive::new(src_file)?;
 
 	for i in 0..archive.len() {
 		let mut file = archive.by_index(i)?;
-		let file_path = dest.join(file.name());
+		let san_name = file.sanitized_name();
+		if !expected(&san_name) {
+			debug!("ignoring a file in txhashset: {:?}", san_name);
+			continue;
+		}
+		let file_path = dest.join(san_name);
 
 		if (&*file.name()).ends_with('/') {
 			fs::create_dir_all(&file_path)?;
@@ -80,7 +86,6 @@ where
 					fs::create_dir_all(&p)?;
 				}
 			}
-			//let mut outfile = fs::File::create(&file_path)?;
 			let res = fs::File::create(&file_path);
 			let mut outfile = match res {
 				Err(e) => {

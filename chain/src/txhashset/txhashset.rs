@@ -52,6 +52,14 @@ const KERNEL_SUBDIR: &'static str = "kernel";
 
 const TXHASHSET_ZIP: &'static str = "txhashset_snapshot";
 
+const EXPECTED_ZIP_SUBDIRS: [&'static str; 3] = [OUTPUT_SUBDIR, RANGE_PROOF_SUBDIR, KERNEL_SUBDIR];
+const EXPECTED_ZIP_FILES: [&'static str; 4] = [
+	"pmmr_data.bin",
+	"pmmr_hash.bin",
+	"pmmr_leaf.bin",
+	"pmmr_prun.bin",
+];
+
 struct PMMRHandle<T: PMMRable> {
 	backend: PMMRBackend<T>,
 	last_pos: u64,
@@ -1445,9 +1453,32 @@ pub fn zip_write(
 ) -> Result<(), Error> {
 	let txhashset_path = Path::new(&root_dir).join(TXHASHSET_SUBDIR);
 	fs::create_dir_all(txhashset_path.clone())?;
-	zip::decompress(txhashset_data, &txhashset_path)
+	zip::decompress(txhashset_data, &txhashset_path, expected_file)
 		.map_err(|ze| ErrorKind::Other(ze.to_string()))?;
 	check_and_remove_files(&txhashset_path, header)
+}
+
+macro_rules! file_name {
+	($file:expr) => {
+		match $file.file_name() {
+			None => "",
+			Some(s) => s.to_str().unwrap_or(""),
+			}
+	};
+}
+
+fn expected_file(path: &Path) -> bool {
+	let no_parent = |p: &Path| p.parent().is_none() || file_name!(p.parent().unwrap()) == "";
+
+	if no_parent(path) {
+		EXPECTED_ZIP_SUBDIRS.contains(&file_name!(path))
+	} else {
+		let dir = path.parent().unwrap();
+		let fname = file_name!(path);
+		(EXPECTED_ZIP_FILES.contains(&fname) || fname.starts_with("pmmr_leaf.bin"))
+			&& EXPECTED_ZIP_SUBDIRS.contains(&file_name!(dir))
+			&& no_parent(dir)
+	}
 }
 
 /// Check a txhashset directory and remove any unexpected
@@ -1592,4 +1623,18 @@ pub fn input_pos_to_rewind(
 
 	let bitmap = bitmap_fast_or(None, &mut block_input_bitmaps).unwrap();
 	Ok(bitmap)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_expected_files() {
+		assert!(expected_file(Path::new("kernel/")));
+		assert!(!expected_file(Path::new("kernels/")));
+		assert!(expected_file(Path::new("kernel")));
+		assert!(expected_file(Path::new("kernel/pmmr_data.bin")));
+		assert!(!expected_file(Path::new("xkernel/pmmr_data.bin")));
+	}
 }
