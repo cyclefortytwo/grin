@@ -211,7 +211,13 @@ impl ConnHandle {
 	{
 		let buf = write_to_buf(body, msg_type)?;
 		let buf_len = buf.len();
-		self.send_channel.try_send(buf)?;
+		if let Err(e) = self.send_channel.try_send(buf) {
+			match e {
+				mpsc::TrySendError::Full(_) => error!("XXX full send buffer"),
+				_ => {}
+			};
+			return Err(e.into());
+		}
 		Ok(buf_len as u64)
 	}
 }
